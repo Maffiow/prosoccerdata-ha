@@ -1,7 +1,6 @@
 import logging
+import re
 import time
-from typing import Any
-from urllib.parse import urlparse
 
 import aiohttp
 
@@ -249,3 +248,13 @@ class ProSoccerDataAPI:
             "meeting_location": (event.get("meetingLocation") or {}).get("fullAddress", ""),
             "cancelled": event.get("cancelled", False),
         }
+
+
+def _extract_competition(description: str) -> str:
+    m = re.search(r"<strong[^>]*>([^<]+)</strong>", description)
+    return m.group(1).strip() if m else ""
+
+
+def _extract_score(description: str) -> str | None:
+    m = re.search(r"\b(\d+)\s*[-–]\s*(\d+)\b", description)
+    return f"{m.group(1)}-{m.group(2)}" if m else None

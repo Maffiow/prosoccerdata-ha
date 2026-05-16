@@ -7,17 +7,25 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .api import AuthError, ProSoccerDataAPI
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from .const import CONF_PLAYERS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_CREDENTIALS_SCHEMA = vol.Schema(
     {
-        vol.Required("email"): str,
-        vol.Required("password"): str,
+        vol.Required("email"): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.EMAIL)
+        ),
+        vol.Required("password"): TextSelector(
+            TextSelectorConfig(type=TextSelectorType.PASSWORD)
+        ),
     }
 )
 
@@ -79,7 +87,6 @@ class ProSoccerDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 2 – pick which kids to track."""
         errors: dict[str, str] = {}
 
-        # Build options: "FirstName LastName (Club)" -> str(platformMemberId)
         options = {
             str(p["platformMemberId"]): (
                 f"{p.get('platformUserFirstName', p.get('platformMemberFirstName', '?'))}"
@@ -111,9 +118,7 @@ class ProSoccerDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required("player_ids"): vol.All(
-                    cv_multi_select(options), vol.Length(min=1)
-                )
+                vol.Required("player_ids"): cv_multi_select(options),
             }
         )
 
@@ -126,8 +131,6 @@ class ProSoccerDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 def cv_multi_select(options: dict) -> Any:
     """Return a voluptuous validator that accepts a list of keys from options."""
-    import homeassistant.helpers.config_validation as cv
-
     def _validate(value: Any) -> list[str]:
         if isinstance(value, str):
             value = [value]

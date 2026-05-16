@@ -50,32 +50,3 @@ The setup wizard will ask for:
 | `attendance_state` | e.g. `PRESENT` |
 | `full_title` | Full match title (e.g. `Home FC - Away FC`) |
 | `recent_matches` | List of last 10 matches |
-
-## Troubleshooting
-
-Run `test_api.py` (at the repo root) with your credentials to verify the API calls work before adding to HA:
-
-```powershell
-pip install aiohttp
-$env:PSD_EMAIL='your@email.com'
-$env:PSD_PASSWORD='yourpassword'
-python test_api.py
-```
-
-The script prints every HTTP status and response body so you can confirm the API is reachable.
-
-## API Notes
-
-Authentication against `psd.prosoccerdata.com`:
-
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /api/v2/login/oauth/token?platform=` | Central login → JWT |
-| `GET /api/v2/central-users/current/possible-users` | List players |
-
-Then on the club subdomain (e.g. `kskmeeuwen.prosoccerdata.com`):
-
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /api/v2/central-users/select` | Create platform session → UUID token |
-| `GET /api/v2/schedule/dashboard/games/previous?size=20&page=0&sort=date,desc` | Previous matches |
