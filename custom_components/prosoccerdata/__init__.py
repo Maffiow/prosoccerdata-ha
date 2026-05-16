@@ -1,5 +1,6 @@
 import logging
 
+import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -14,7 +15,7 @@ PLATFORMS = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    session = async_create_clientsession(hass)
+    session = async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
     api = ProSoccerDataAPI(session, entry.data["email"], entry.data["password"])
 
     if not await api.login():

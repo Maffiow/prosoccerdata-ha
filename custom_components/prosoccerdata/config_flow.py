@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -8,6 +9,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -32,7 +36,7 @@ STEP_CREDENTIALS_SCHEMA = vol.Schema(
 
 async def _validate_credentials(hass: HomeAssistant, email: str, password: str) -> list[dict]:
     """Return list of players or raise if login fails."""
-    session = async_create_clientsession(hass)
+    session = async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
     api = ProSoccerDataAPI(session, email, password)
     ok = await api.login()
     if not ok:
@@ -60,16 +64,18 @@ class ProSoccerDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._email = user_input["email"]
-            self._password = user_input["password"]
             try:
+                self._email = user_input.get("email", "")
+                self._password = user_input.get("password", "")
+                _LOGGER.debug("ProSoccerData login attempt for %s", self._email)
                 self._players = await _validate_credentials(
                     self.hass, self._email, self._password
                 )
+                _LOGGER.debug("ProSoccerData got %d players", len(self._players))
             except AuthError as err:
                 errors["base"] = str(err)
             except Exception:
-                _LOGGER.exception("Unexpected error during login")
+                _LOGGER.exception("Unexpected error during ProSoccerData login")
                 errors["base"] = "unknown"
             else:
                 return await self.async_step_select_players()
@@ -87,14 +93,19 @@ class ProSoccerDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Step 2 – pick which kids to track."""
         errors: dict[str, str] = {}
 
-        options = {
-            str(p["platformMemberId"]): (
-                f"{p.get('platformUserFirstName', p.get('platformMemberFirstName', '?'))}"
-                f" {p.get('platformUserLastName', p.get('platformMemberLastName', '?'))}"
-                f" – {p.get('platform', '')}"
-            )
+        select_options = [
+            {
+                "value": str(p["platformMemberId"]),
+                "label": (
+                    f"{p.get('platformUserFirstName', p.get('platformMemberFirstName', '?'))}"
+                    f" {p.get('platformUserLastName', p.get('platformMemberLastName', '?'))}"
+                    f" – {p.get('platform', '')}"
+                ),
+            }
             for p in self._players
-        }
+        ]
+
+        _LOGGER.debug("ProSoccerData select_players options: %s", select_options)
 
         if user_input is not None:
             selected_ids = user_input.get("player_ids", [])
@@ -118,7 +129,13 @@ class ProSoccerDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required("player_ids"): cv_multi_select(options),
+                vol.Required("player_ids"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=select_options,
+                        multiple=True,
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
             }
         )
 
@@ -127,16 +144,3 @@ class ProSoccerDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
         )
-
-
-def cv_multi_select(options: dict) -> Any:
-    """Return a voluptuous validator that accepts a list of keys from options."""
-    def _validate(value: Any) -> list[str]:
-        if isinstance(value, str):
-            value = [value]
-        invalid = [v for v in value if v not in options]
-        if invalid:
-            raise vol.Invalid(f"Invalid selection: {invalid}")
-        return value
-
-    return _validate

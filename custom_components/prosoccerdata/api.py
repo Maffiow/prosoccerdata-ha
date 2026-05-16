@@ -3,6 +3,7 @@ import re
 import time
 
 import aiohttp
+import yarl
 
 from .const import APP_URL, CENTRAL_TOKEN_HEADER, LOGIN_URL, POSSIBLE_USERS_URL
 
@@ -73,6 +74,7 @@ class ProSoccerDataAPI:
         """Headers for platform-domain calls (same-origin, no global Origin)."""
         h = {
             "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "nl",
             "Referer": f"{plat_url}/dashboard",
             "Clienttimezone": "Europe/Brussels",
             "User-Agent": _USER_AGENT,
@@ -133,10 +135,24 @@ class ProSoccerDataAPI:
             return []
 
     async def _ensure_platform_token(self, player: dict) -> str:
-        """Return (and cache) the UUID platform_access_token via the select endpoint."""
+        """Return (and cache) the UUID platform_access_token.
+
+        Mirrors the browser sequence: platform login → select → warmup calls.
+        """
         platform_id: int = player["platformId"]
         if platform_id not in self._platform_tokens:
             plat_url = player["platformURL"].rstrip("/")
+            api_url = player.get("apiURL", "").rstrip("/")
+            plat_key = plat_url.split("//")[1].split(".")[0]
+
+            # Step 1: platform-specific login (browser does token?platform=kskmeeuwen)
+            try:
+                await self._do_login(platform=plat_key)
+                _LOGGER.debug("Platform login OK for %s", plat_key)
+            except Exception as err:
+                _LOGGER.debug("Platform login failed for %s: %s", plat_key, err)
+
+            # Step 2: select → UUID session token
             select_url = f"{plat_url}/api/v2/central-users/select"
             try:
                 resp = await self._session.post(
@@ -154,14 +170,31 @@ class ProSoccerDataAPI:
                 data = await resp.json(content_type=None)
                 pat = data.get("access_token", "")
                 prt = data.get("refresh_token", "")
-                if pat:
-                    self._platform_tokens[platform_id] = {
-                        "access_token": pat,
-                        "refresh_token": prt,
-                    }
-                    _LOGGER.debug("Platform select OK for platformId=%s", platform_id)
-                else:
+                if not pat:
                     _LOGGER.error("Platform select returned no access_token")
+                    return ""
+
+                self._platform_tokens[platform_id] = {
+                    "access_token": pat,
+                    "refresh_token": prt,
+                }
+                _LOGGER.debug("Platform select OK for platformId=%s", platform_id)
+
+                # Step 3: warmup calls — browser always calls these before /previous
+                cookie = (
+                    f"platform_access_token={pat}; platform_refresh_token={prt}; "
+                    f"taal=nl; central_access_token={self._central_token}"
+                )
+                for path in ["/modules", "/permissions", "/legal/termsofuse/accepted"]:
+                    try:
+                        r = await self._session.get(
+                            f"{api_url}{path}",
+                            headers=self._plat_headers(plat_url, {"Cookie": cookie}),
+                        )
+                        _LOGGER.debug("warmup %s → HTTP %s", path, r.status)
+                    except Exception:
+                        pass
+
             except aiohttp.ClientError as err:
                 _LOGGER.error("Platform select error: %s", err)
         return self._platform_tokens.get(platform_id, {}).get("access_token", "")
@@ -177,9 +210,14 @@ class ProSoccerDataAPI:
 
         prt = self._platform_tokens.get(player["platformId"], {}).get("refresh_token", "")
         cookie = f"platform_access_token={pat}; platform_refresh_token={prt}; taal=nl; central_access_token={self._central_token}"
-        # Must build URL manually — aiohttp percent-encodes commas in params dicts,
-        # but the server requires a literal comma in sort=date,desc (returns 400 otherwise).
-        url = f"{api_url}/schedule/dashboard/games/previous?size={count}&page=0&sort=date,desc"
+        # yarl (aiohttp's URL library) re-encodes commas to %2C even in pre-built URL strings.
+        # The server rejects sort=date%2Cdesc with 400; encoded=True prevents re-encoding.
+        url = yarl.URL(
+            f"{api_url}/schedule/dashboard/games/previous?size={count}&page=0&sort=date,desc",
+            encoded=True,
+        )
+
+        _LOGGER.debug("get_previous_matches URL: %s", str(url))
 
         try:
             resp = await self._session.get(
@@ -192,6 +230,10 @@ class ProSoccerDataAPI:
                 if isinstance(data, dict):
                     return data.get("content", [])
                 return data if isinstance(data, list) else []
+            if resp.status == 400:
+                body = await resp.text()
+                _LOGGER.warning("get_previous_matches 400 body: %s", body[:500])
+                return []
             if resp.status == 401:
                 # Token expired — clear and retry once
                 platform_id = player["platformId"]
@@ -201,7 +243,7 @@ class ProSoccerDataAPI:
                     prt = self._platform_tokens.get(platform_id, {}).get("refresh_token", "")
                     cookie2 = f"platform_access_token={pat}; platform_refresh_token={prt}; taal=nl; central_access_token={self._central_token}"
                     resp2 = await self._session.get(
-                        url,
+                        url,  # already a yarl.URL with encoded=True
                         headers=self._plat_headers(plat_url, {"Cookie": cookie2}),
                     )
                     if resp2.status == 200:
