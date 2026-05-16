@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ProSoccerData – Log in",
+        "description": "Enter your credentials for {url}",
+        "data": {
+          "email": "Email address",
+          "password": "Password"
+        }
+      },
+      "select_players": {
+        "title": "ProSoccerData – Select players",
+        "description": "Choose which players (kids) you want to track.",
+        "data": {
+          "player_ids": "Players"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "no_players": "Login succeeded but no players were found on this account.",
+      "no_players_selected": "Please select at least one player.",
+      "unknown": "Unexpected error – check the Home Assistant logs."
+    },
+    "abort": {
+      "already_configured": "This ProSoccerData account is already configured."
+    }
+  }
+}

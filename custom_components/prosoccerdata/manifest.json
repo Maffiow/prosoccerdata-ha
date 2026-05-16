@@ -1,0 +1,12 @@
+{
+  "domain": "prosoccerdata",
+  "name": "ProSoccerData",
+  "version": "0.1.0",
+  "documentation": "https://github.com/janmeermans/prosoccerdata-ha",
+  "issue_tracker": "https://github.com/janmeermans/prosoccerdata-ha/issues",
+  "dependencies": [],
+  "codeowners": ["@janmeermans"],
+  "requirements": [],
+  "config_flow": true,
+  "iot_class": "cloud_polling"
+}
