@@ -41,27 +41,13 @@ class AuthError(Exception):
 
 
 class ProSoccerDataAPI:
-    """API client for ProSoccerData.
-
-    Auth flow:
-      1. POST psd.../api/v2/login/oauth/token?platform=  → central JWT
-      2. GET  psd.../api/v2/central-users/current/possible-users
-             header: central-token: <JWT>   → list of players
-      3. POST kskmeeuwen.../api/v2/central-users/select
-             header: central-token: <JWT>
-             body:   {userId: platformUserId, platformId: platformId}
-             → {access_token: "<UUID>", refresh_token: "<UUID>", expires_in: 86399}
-      4. GET  kskmeeuwen.../api/v2/schedule/dashboard/games/previous
-             cookie: platform_access_token=<UUID>
-             → {content: [...matches...], totalElements: N, ...}
-    """
+    """API client for ProSoccerData."""
 
     def __init__(self, session: aiohttp.ClientSession, email: str, password: str) -> None:
         self._session = session
         self._email = email
         self._password = password
         self._central_token: str = ""
-        # platformId -> {access_token, refresh_token}
         self._platform_tokens: dict[int, dict] = {}
 
     def _headers(self, extra: dict | None = None) -> dict:
@@ -71,7 +57,6 @@ class ProSoccerDataAPI:
         return h
 
     def _plat_headers(self, plat_url: str, extra: dict | None = None) -> dict:
-        """Headers for platform-domain calls (same-origin, no global Origin)."""
         h = {
             "Accept": "application/json, text/plain, */*",
             "Accept-Language": "nl",
@@ -90,28 +75,33 @@ class ProSoccerDataAPI:
             "login": self._email,
             "password": self._password,
         }
+
         resp = await self._session.post(
             LOGIN_URL,
             json=payload,
             params={"platform": platform},
             headers=self._headers(),
         )
+
         if resp.status not in (200, 201):
             text = await resp.text()
             raise AuthError(f"Login failed (HTTP {resp.status}): {text[:200]}")
+
         return await resp.json(content_type=None)
 
     async def login(self) -> bool:
-        """Central login — stores the central token used for possible-users and select."""
         try:
             data = await self._do_login(platform="")
             token = data.get("access_token")
+
             if not token:
                 _LOGGER.error("Login succeeded but no access_token in response")
                 return False
+
             self._central_token = token
             _LOGGER.debug("Central login OK")
             return True
+
         except AuthError as err:
             _LOGGER.error("Login error: %s", err)
             return False
@@ -119,41 +109,39 @@ class ProSoccerDataAPI:
             raise AuthError(str(err)) from err
 
     async def get_players(self) -> list[dict]:
-        """Return list of available players/platforms."""
         try:
             resp = await self._session.get(
                 POSSIBLE_USERS_URL,
                 params={"platform": ""},
                 headers=self._headers({CENTRAL_TOKEN_HEADER: self._central_token}),
             )
+
             if resp.status == 200:
                 return await resp.json(content_type=None)
+
             _LOGGER.warning("get_players HTTP %s", resp.status)
             return []
+
         except aiohttp.ClientError as err:
             _LOGGER.error("get_players error: %s", err)
             return []
 
     async def _ensure_platform_token(self, player: dict) -> str:
-        """Return (and cache) the UUID platform_access_token.
-
-        Mirrors the browser sequence: platform login → select → warmup calls.
-        """
         platform_id: int = player["platformId"]
+
         if platform_id not in self._platform_tokens:
             plat_url = player["platformURL"].rstrip("/")
             api_url = player.get("apiURL", "").rstrip("/")
             plat_key = plat_url.split("//")[1].split(".")[0]
 
-            # Step 1: platform-specific login (browser does token?platform=kskmeeuwen)
             try:
                 await self._do_login(platform=plat_key)
                 _LOGGER.debug("Platform login OK for %s", plat_key)
             except Exception as err:
                 _LOGGER.debug("Platform login failed for %s: %s", plat_key, err)
 
-            # Step 2: select → UUID session token
             select_url = f"{plat_url}/api/v2/central-users/select"
+
             try:
                 resp = await self._session.post(
                     select_url,
@@ -163,13 +151,16 @@ class ProSoccerDataAPI:
                     },
                     headers=self._headers({CENTRAL_TOKEN_HEADER: self._central_token}),
                 )
+
                 if resp.status not in (200, 201):
                     text = await resp.text()
                     _LOGGER.error("Platform select HTTP %s: %s", resp.status, text[:200])
                     return ""
+
                 data = await resp.json(content_type=None)
                 pat = data.get("access_token", "")
                 prt = data.get("refresh_token", "")
+
                 if not pat:
                     _LOGGER.error("Platform select returned no access_token")
                     return ""
@@ -178,13 +169,11 @@ class ProSoccerDataAPI:
                     "access_token": pat,
                     "refresh_token": prt,
                 }
+
                 _LOGGER.debug("Platform select OK for platformId=%s", platform_id)
 
-                # Step 3: warmup calls — browser always calls these before /previous
-                cookie = (
-                    f"platform_access_token={pat}; platform_refresh_token={prt}; "
-                    f"taal=nl; central_access_token={self._central_token}"
-                )
+                cookie = self._build_platform_cookie(platform_id)
+
                 for path in ["/modules", "/permissions", "/legal/termsofuse/accepted"]:
                     try:
                         r = await self._session.get(
@@ -197,10 +186,22 @@ class ProSoccerDataAPI:
 
             except aiohttp.ClientError as err:
                 _LOGGER.error("Platform select error: %s", err)
+
         return self._platform_tokens.get(platform_id, {}).get("access_token", "")
 
+    def _build_platform_cookie(self, platform_id: int) -> str:
+        token_data = self._platform_tokens.get(platform_id, {})
+        pat = token_data.get("access_token", "")
+        prt = token_data.get("refresh_token", "")
+
+        return (
+            f"platform_access_token={pat}; "
+            f"platform_refresh_token={prt}; "
+            f"taal=nl; "
+            f"central_access_token={self._central_token}"
+        )
+
     async def get_previous_matches(self, player: dict, count: int = 20) -> list[dict]:
-        """Fetch previous matches for a player."""
         api_url = player.get("apiURL", "").rstrip("/")
         plat_url = player.get("platformURL", "").rstrip("/")
 
@@ -208,58 +209,41 @@ class ProSoccerDataAPI:
         if not pat:
             return []
 
-        prt = self._platform_tokens.get(player["platformId"], {}).get("refresh_token", "")
-        cookie = f"platform_access_token={pat}; platform_refresh_token={prt}; taal=nl; central_access_token={self._central_token}"
-        # yarl (aiohttp's URL library) re-encodes commas to %2C even in pre-built URL strings.
-        # The server rejects sort=date%2Cdesc with 400; encoded=True prevents re-encoding.
+        platform_id = player["platformId"]
+        cookie = self._build_platform_cookie(platform_id)
+
         url = yarl.URL(
             f"{api_url}/schedule/dashboard/games/previous?size={count}&page=0&sort=date,desc",
             encoded=True,
         )
-
-        _LOGGER.debug("get_previous_matches URL: %s", str(url))
 
         try:
             resp = await self._session.get(
                 url,
                 headers=self._plat_headers(plat_url, {"Cookie": cookie}),
             )
+
             _LOGGER.debug("get_previous_matches → HTTP %s", resp.status)
+
             if resp.status == 200:
                 data = await resp.json(content_type=None)
                 if isinstance(data, dict):
                     return data.get("content", [])
                 return data if isinstance(data, list) else []
-            if resp.status == 400:
-                body = await resp.text()
-                _LOGGER.warning("get_previous_matches 400 body: %s", body[:500])
-                return []
+
             if resp.status == 401:
-                # Token expired — clear and retry once
-                platform_id = player["platformId"]
                 self._platform_tokens.pop(platform_id, None)
-                pat = await self._ensure_platform_token(player)
-                if pat:
-                    prt = self._platform_tokens.get(platform_id, {}).get("refresh_token", "")
-                    cookie2 = f"platform_access_token={pat}; platform_refresh_token={prt}; taal=nl; central_access_token={self._central_token}"
-                    resp2 = await self._session.get(
-                        url,  # already a yarl.URL with encoded=True
-                        headers=self._plat_headers(plat_url, {"Cookie": cookie2}),
-                    )
-                    if resp2.status == 200:
-                        data = await resp2.json(content_type=None)
-                        if isinstance(data, dict):
-                            return data.get("content", [])
-                        return data if isinstance(data, list) else []
-            _LOGGER.warning("get_previous_matches HTTP %s", resp.status)
+                return await self.get_previous_matches(player, count)
+
+            body = await resp.text()
+            _LOGGER.warning("get_previous_matches HTTP %s: %s", resp.status, body[:500])
             return []
+
         except aiohttp.ClientError as err:
             _LOGGER.error("get_previous_matches error: %s", err)
             return []
-    
-    async def get_payment_requests(self, player: dict, count: int = 10) -> list[dict]:
-        """Fetch finance payment requests for a player/member."""
 
+    async def get_payment_requests(self, player: dict, count: int = 10) -> list[dict]:
         api_url = player.get("apiURL", "").rstrip("/")
         plat_url = player.get("platformURL", "").rstrip("/")
 
@@ -269,14 +253,7 @@ class ProSoccerDataAPI:
 
         platform_id = player["platformId"]
         member_id = player["platformMemberId"]
-        prt = self._platform_tokens.get(platform_id, {}).get("refresh_token", "")
-
-        cookie = (
-            f"platform_access_token={pat}; "
-            f"platform_refresh_token={prt}; "
-            f"taal=nl; "
-            f"central_access_token={self._central_token}"
-        )
+        cookie = self._build_platform_cookie(platform_id)
 
         url = yarl.URL(
             f"{api_url}/finances/members/{member_id}/paymentrequests"
@@ -309,26 +286,75 @@ class ProSoccerDataAPI:
                 return []
 
             body = await resp.text()
-            _LOGGER.warning(
-                "get_payment_requests HTTP %s: %s",
-                resp.status,
-                body[:500],
-            )
+            _LOGGER.warning("get_payment_requests HTTP %s: %s", resp.status, body[:500])
             return []
 
         except aiohttp.ClientError as err:
             _LOGGER.error("get_payment_requests error: %s", err)
             return []
+
+    async def get_teams(self, player: dict) -> dict:
+        api_url = player.get("apiURL", "").rstrip("/")
+        plat_url = player.get("platformURL", "").rstrip("/")
+
+        pat = await self._ensure_platform_token(player)
+        if not pat:
+            return {}
+
+        platform_id = player["platformId"]
+        cookie = self._build_platform_cookie(platform_id)
+
+        url = yarl.URL(
+            f"{api_url}/filters/module/kalender/name/teams",
+            encoded=True,
+        )
+
+        payload = {
+            "module": "kalender",
+            "name": "teams",
+            "value": "{}",
+        }
+
+        try:
+            resp = await self._session.post(
+                url,
+                json=payload,
+                headers=self._plat_headers(
+                    plat_url,
+                    {
+                        "Cookie": cookie,
+                        "Content-Type": "application/json",
+                        "Referer": f"{plat_url}/planning/calendar",
+                    },
+                ),
+            )
+
+            _LOGGER.debug("get_teams → HTTP %s", resp.status)
+
+            if resp.status == 200:
+                data = await resp.json(content_type=None)
+                return data if isinstance(data, dict) else {}
+
+            if resp.status == 401:
+                self._platform_tokens.pop(platform_id, None)
+                return {}
+
+            body = await resp.text()
+            _LOGGER.warning("get_teams HTTP %s: %s", resp.status, body[:500])
+            return {}
+
+        except aiohttp.ClientError as err:
+            _LOGGER.error("get_teams error: %s", err)
+            return {}
+
     @staticmethod
     def parse_match(event: dict) -> dict:
-        """Normalise a raw event dict into a clean match dict."""
         subtype = event.get("subtype", "")
         home_away = "Away" if subtype == "away" else "Home"
 
         full_title = event.get("fullTitle", "")
         if " - " in full_title:
             parts = full_title.split(" - ", 1)
-            # fullTitle = "HomeTeam - AwayTeam"; player is home or away
             opponent = parts[0].strip() if home_away == "Away" else parts[1].strip()
         else:
             opponent = full_title
