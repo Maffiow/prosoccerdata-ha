@@ -43,6 +43,9 @@ async def async_setup_entry(
                 ProSoccerDataLastPaymentStatusSensor(coordinator, player),
                 ProSoccerDataTotalPaidSensor(coordinator, player),
                 ProSoccerDataPaymentCountSensor(coordinator, player),
+                ProSoccerDataProfileSensor(coordinator, player),
+                ProSoccerDataTeamSensor(coordinator, player),
+                ProSoccerDataAccountSensor(coordinator, player),
             ]
         )
 
@@ -161,7 +164,11 @@ class ProSoccerDataLastPaymentAmountSensor(ProSoccerDataBaseSensor):
         data = self._player_data
         payment = (data or {}).get("last_payment_request") or {}
         amount = payment.get("amount")
-        return float(amount) if amount is not None else None
+
+        try:
+            return float(amount) if amount is not None else None
+        except (TypeError, ValueError):
+            return None
 
 
 class ProSoccerDataLastPaymentStatusSensor(ProSoccerDataBaseSensor):
@@ -189,9 +196,11 @@ class ProSoccerDataLastPaymentStatusSensor(ProSoccerDataBaseSensor):
 
         return {
             "id": payment.get("id"),
-            "description": payment.get("description")
-            or payment.get("name")
-            or payment.get("title"),
+            "description": (
+                payment.get("description")
+                or payment.get("name")
+                or payment.get("title")
+            ),
             "amount": payment.get("amount"),
             "sent_date": payment.get("sentDate"),
             "due_date": payment.get("dueDate"),
@@ -222,8 +231,11 @@ class ProSoccerDataTotalPaidSensor(ProSoccerDataBaseSensor):
         for payment in payments:
             if payment.get("status") == "paid":
                 amount = payment.get("amount")
-                if amount is not None:
-                    total += float(amount)
+                try:
+                    if amount is not None:
+                        total += float(amount)
+                except (TypeError, ValueError):
+                    pass
 
         return total
 
@@ -255,9 +267,11 @@ class ProSoccerDataPaymentCountSensor(ProSoccerDataBaseSensor):
             "payment_requests": [
                 {
                     "id": p.get("id"),
-                    "description": p.get("description")
-                    or p.get("name")
-                    or p.get("title"),
+                    "description": (
+                        p.get("description")
+                        or p.get("name")
+                        or p.get("title")
+                    ),
                     "amount": p.get("amount"),
                     "status": p.get("status"),
                     "sent_date": p.get("sentDate"),
@@ -266,4 +280,147 @@ class ProSoccerDataPaymentCountSensor(ProSoccerDataBaseSensor):
                 }
                 for p in payments[:10]
             ]
+        }
+
+
+class ProSoccerDataProfileSensor(ProSoccerDataBaseSensor):
+    """Sensor showing member profile information."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="profile",
+            name_suffix="Profile",
+            icon="mdi:account",
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        data = self._player_data
+        member = ((data or {}).get("teams") or {}).get("member", {})
+        first = member.get("firstName")
+        last = member.get("lastName")
+
+        if first or last:
+            return f"{first or ''} {last or ''}".strip()
+
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._player_data
+        member = ((data or {}).get("teams") or {}).get("member", {})
+
+        return {
+            "member_id": member.get("id"),
+            "first_name": member.get("firstName"),
+            "last_name": member.get("lastName"),
+            "nickname": member.get("nickname"),
+            "local_name": member.get("localName"),
+            "birth_date": member.get("birthDate"),
+            "age": member.get("age"),
+            "status": member.get("status"),
+            "active": member.get("active"),
+            "gender": member.get("gender"),
+            "keeper": member.get("keeper"),
+            "foot": member.get("foot"),
+            "shirt_number": member.get("shirtNumber"),
+            "language": member.get("languagePSD"),
+            "uuid": member.get("uuid"),
+            "central_psd_id": member.get("centralPsdId"),
+            "profile_picture_url": member.get("profilePictureURL"),
+        }
+
+
+class ProSoccerDataTeamSensor(ProSoccerDataBaseSensor):
+    """Sensor showing member team information."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="team",
+            name_suffix="Team",
+            icon="mdi:account-group",
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        data = self._player_data
+        teams_data = (data or {}).get("teams") or {}
+        user_member = ((teams_data.get("user") or {}).get("member") or {})
+        member = teams_data.get("member") or {}
+
+        return (
+            user_member.get("myTeamName")
+            or user_member.get("teamName")
+            or member.get("teamId")
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._player_data
+        teams_data = (data or {}).get("teams") or {}
+        user_member = ((teams_data.get("user") or {}).get("member") or {})
+        member = teams_data.get("member") or {}
+
+        return {
+            "team_id": member.get("teamId") or user_member.get("team"),
+            "team_ids": user_member.get("teamIds"),
+            "team_name": user_member.get("myTeamName") or user_member.get("teamName"),
+            "team_subcategory": user_member.get("teamSubcategory"),
+            "team_international": member.get("teamInternational"),
+            "team_international_subcategory": user_member.get("teamInternationalSubcategory"),
+            "club_id": member.get("clubId") or user_member.get("clubId"),
+            "club_international": member.get("clubInternational"),
+            "role_name": user_member.get("roleName"),
+            "function_title": member.get("functionTitle") or user_member.get("functionTitle"),
+            "main_sportive_role": user_member.get("mainSportiveRole"),
+            "main_sportive_role_id": member.get("mainSportiveRoleId"),
+        }
+
+
+class ProSoccerDataAccountSensor(ProSoccerDataBaseSensor):
+    """Sensor showing account information."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="account",
+            name_suffix="Account",
+            icon="mdi:account-key",
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        data = self._player_data
+        user = ((data or {}).get("teams") or {}).get("user", {})
+        return user.get("username")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._player_data
+        teams_data = (data or {}).get("teams") or {}
+        user = teams_data.get("user") or {}
+        user_member = user.get("member") or {}
+
+        return {
+            "user_id": user.get("id"),
+            "username": user.get("username"),
+            "email": user.get("email"),
+            "central_user_id": user.get("centralUserId"),
+            "is_active": user.get("isActive"),
+            "first_login_date": user.get("firstLoginDate"),
+            "last_login_date": user.get("lastLoginDate"),
+            "notifications_view": user.get("notificationsView"),
+            "accepted_terms_of_use": user_member.get("acceptedTermsOfUse"),
+            "has_profile_picture": user_member.get("hasProfilePicture"),
+            "profile_picture_version": user_member.get("profilePictureVersion"),
+            "creation_date": user_member.get("creationDate"),
+            "last_modified_date": user_member.get("lastModifiedDate"),
+            "link_status": user_member.get("linkStatus"),
+            "external": user_member.get("external"),
+            "uid": user_member.get("uid"),
         }
