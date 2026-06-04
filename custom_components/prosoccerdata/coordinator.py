@@ -11,7 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ProSoccerDataCoordinator(DataUpdateCoordinator):
-    """Fetch match and payment data for all selected players."""
+    """Fetch match, payment and profile data for all selected players."""
 
     def __init__(self, hass: HomeAssistant, api: ProSoccerDataAPI, players: list[dict]) -> None:
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
@@ -30,21 +30,23 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
 
             try:
                 raw_matches = await self.api.get_previous_matches(player)
-                parsed = [self.api.parse_match(m) for m in raw_matches]
+                parsed_matches = [self.api.parse_match(m) for m in raw_matches]
 
                 payment_requests = await self.api.get_payment_requests(player)
+                teams = await self.api.get_teams(player)
 
                 result[str(member_id)] = {
                     "player": player,
-                    "matches": parsed,
-                    "last_match": parsed[0] if parsed else None,
+                    "matches": parsed_matches,
+                    "last_match": parsed_matches[0] if parsed_matches else None,
                     "payment_requests": payment_requests,
                     "last_payment_request": payment_requests[0] if payment_requests else None,
+                    "teams": teams,
                 }
 
                 _LOGGER.debug(
-                    "Fetched %d matches and %d payment requests for %s",
-                    len(parsed),
+                    "Fetched %d matches, %d payment requests and profile/team data for %s",
+                    len(parsed_matches),
                     len(payment_requests),
                     name,
                 )
@@ -58,6 +60,7 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
                     "last_match": None,
                     "payment_requests": [],
                     "last_payment_request": None,
+                    "teams": {},
                 }
 
         if not result:
