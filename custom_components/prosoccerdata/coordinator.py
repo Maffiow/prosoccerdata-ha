@@ -30,10 +30,15 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
             try:
                 raw_matches = await self.api.get_previous_matches(player)
                 parsed = [self.api.parse_match(m) for m in raw_matches]
+                
+                payment_requests = await self.api.get_payment_requests(player)
+                
                 result[str(member_id)] = {
                     "player": player,
                     "matches": parsed,
                     "last_match": parsed[0] if parsed else None,
+                    "payment_requests": payment_requests,
+                    "last_payment_request": payment_requests[0] if payment_requests else None,
                 }
                 _LOGGER.debug("Fetched %d matches for %s", len(parsed), name)
             except Exception as err:
