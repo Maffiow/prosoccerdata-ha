@@ -103,6 +103,22 @@ class ProSoccerDataSensor(CoordinatorEntity, SensorEntity):
             for m in recent[:10]
         ]
 
+        payments = data.get("payment_requests", [])
+        last_payment = data.get("last_payment_request") or {}
+
+        payment_summary = [
+            {
+                "id": p.get("id"),
+                "description": p.get("description") or p.get("name") or p.get("title"),
+                "amount": p.get("amount"),
+                "status": p.get("status"),
+                "sent_date": p.get("sentDate"),
+                "due_date": p.get("dueDate"),
+                "paid": p.get("paid"),
+            }
+            for p in payments[:10]
+        ]
+
         return {
             ATTR_MATCH_START: last.get("start"),
             ATTR_MATCH_END: last.get("end"),
@@ -116,4 +132,20 @@ class ProSoccerDataSensor(CoordinatorEntity, SensorEntity):
             ATTR_ATTENDANCE: last.get("attendance"),
             "full_title": last.get("full_title"),
             ATTR_RECENT_MATCHES: recent_summary,
+
+            # Finance/payment attributes
+            "last_payment_request": {
+                "id": last_payment.get("id"),
+                "description": (
+                    last_payment.get("description")
+                    or last_payment.get("name")
+                    or last_payment.get("title")
+                ),
+                "amount": last_payment.get("amount"),
+                "status": last_payment.get("status"),
+                "sent_date": last_payment.get("sentDate"),
+                "due_date": last_payment.get("dueDate"),
+                "paid": last_payment.get("paid"),
+            },
+            "payment_requests": payment_summary,
         }
