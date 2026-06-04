@@ -102,7 +102,21 @@ class ProSoccerDataSensor(CoordinatorEntity, SensorEntity):
             }
             for m in recent[:10]
         ]
-
+        payments = data.get("payment_requests", [])
+        last_payment = data.get("last_payment_request") or {}
+        
+        payment_summary = [
+            {
+                "id": p.get("id"),
+                "description": p.get("description") or p.get("name") or p.get("title"),
+                "amount": p.get("amount"),
+                "status": p.get("status"),
+                "sent_date": p.get("sentDate"),
+                "due_date": p.get("dueDate"),
+                "paid": p.get("paid"),
+            }
+            for p in payments[:10]
+        ]
         return {
             ATTR_MATCH_START: last.get("start"),
             ATTR_MATCH_END: last.get("end"),
