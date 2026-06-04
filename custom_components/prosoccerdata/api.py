@@ -257,7 +257,7 @@ class ProSoccerDataAPI:
             _LOGGER.error("get_previous_matches error: %s", err)
             return []
     async def get_payment_requests(self, player: dict, count: int = 10) -> list[dict]:
-    """Fetch finance payment requests for a player/member."""
+        """Fetch finance payment requests for a player/member."""
             api_url = player.get("apiURL", "").rstrip("/")
             plat_url = player.get("platformURL", "").rstrip("/")
         
