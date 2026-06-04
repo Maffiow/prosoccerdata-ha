@@ -5,13 +5,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import ProSoccerDataAPI
-from .const import CONF_PLAYERS, DOMAIN, SCAN_INTERVAL
+from .const import DOMAIN, SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class ProSoccerDataCoordinator(DataUpdateCoordinator):
-    """Fetch match data for all selected players."""
+    """Fetch match and payment data for all selected players."""
 
     def __init__(self, hass: HomeAssistant, api: ProSoccerDataAPI, players: list[dict]) -> None:
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=SCAN_INTERVAL)
@@ -27,12 +27,13 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
                 f"{player.get('platformUserFirstName') or player.get('platformMemberFirstName', '?')}"
                 f" {player.get('platformUserLastName') or player.get('platformMemberLastName', '?')}"
             )
+
             try:
                 raw_matches = await self.api.get_previous_matches(player)
                 parsed = [self.api.parse_match(m) for m in raw_matches]
-                
+
                 payment_requests = await self.api.get_payment_requests(player)
-                
+
                 result[str(member_id)] = {
                     "player": player,
                     "matches": parsed,
@@ -40,16 +41,26 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
                     "payment_requests": payment_requests,
                     "last_payment_request": payment_requests[0] if payment_requests else None,
                 }
-                _LOGGER.debug("Fetched %d matches for %s", len(parsed), name)
+
+                _LOGGER.debug(
+                    "Fetched %d matches and %d payment requests for %s",
+                    len(parsed),
+                    len(payment_requests),
+                    name,
+                )
+
             except Exception as err:
                 _LOGGER.error("Error fetching data for %s: %s", name, err)
-                if str(member_id) not in result:
-                    result[str(member_id)] = {
-                        "player": player,
-                        "matches": [],
-                        "last_match": None,
-                    }
+
+                result[str(member_id)] = {
+                    "player": player,
+                    "matches": [],
+                    "last_match": None,
+                    "payment_requests": [],
+                    "last_payment_request": None,
+                }
 
         if not result:
             raise UpdateFailed("No data returned for any player")
+
         return result
