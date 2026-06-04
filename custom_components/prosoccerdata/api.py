@@ -256,7 +256,63 @@ class ProSoccerDataAPI:
         except aiohttp.ClientError as err:
             _LOGGER.error("get_previous_matches error: %s", err)
             return []
-
+    async def get_payment_requests(self, player: dict, count: int = 10) -> list[dict]:
+    """Fetch finance payment requests for a player/member."""
+            api_url = player.get("apiURL", "").rstrip("/")
+            plat_url = player.get("platformURL", "").rstrip("/")
+        
+            pat = await self._ensure_platform_token(player)
+            if not pat:
+                return []
+        
+            platform_id = player["platformId"]
+            member_id = player["platformMemberId"]
+            prt = self._platform_tokens.get(platform_id, {}).get("refresh_token", "")
+        
+            cookie = (
+                f"platform_access_token={pat}; "
+                f"platform_refresh_token={prt}; "
+                f"taal=nl; "
+                f"central_access_token={self._central_token}"
+            )
+        
+            url = yarl.URL(
+                f"{api_url}/finances/members/{member_id}/paymentrequests"
+                f"?size={count}&page=0&sort=sentDate,desc",
+                encoded=True,
+            )
+        
+            try:
+                resp = await self._session.get(
+                    url,
+                    headers=self._plat_headers(
+                        plat_url,
+                        {
+                            "Cookie": cookie,
+                            "Content-Type": "text/plain",
+                        },
+                    ),
+                )
+        
+                if resp.status == 200:
+                    data = await resp.json(content_type=None)
+                    if isinstance(data, dict):
+                        return data.get("content", [])
+                    return data if isinstance(data, list) else []
+        
+                if resp.status == 401:
+                    self._platform_tokens.pop(platform_id, None)
+                    return await self.get_payment_requests(player, count)
+        
+                body = await resp.text()
+                _LOGGER.warning("get_payment_requests HTTP %s: %s", resp.status, body[:500])
+                return []
+        
+            except aiohttp.ClientError as err:
+                _LOGGER.error("get_payment_requests error: %s", err)
+                return []
+        
+            
     @staticmethod
     def parse_match(event: dict) -> dict:
         """Normalise a raw event dict into a clean match dict."""
