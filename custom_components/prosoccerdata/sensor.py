@@ -583,10 +583,10 @@ class ProSoccerDataUnreadMessagesSensor(ProSoccerDataBaseSensor):
 
         return {
             "messages": [
-                f"{msg.get('date')} | { _sender_name(msg) } | { msg.get('subject') }"
+                f"{msg.get('date')} | {_sender_name(msg)} | {msg.get('subject')}"
                 for msg in unread_messages[:30]
             ]
-        }}
+        }
 
 class ProSoccerDataAccountSensor(ProSoccerDataBaseSensor):
     """Sensor showing account information."""
