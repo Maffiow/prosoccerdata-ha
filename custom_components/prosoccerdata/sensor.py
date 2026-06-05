@@ -582,10 +582,12 @@ class ProSoccerDataUnreadMessagesSensor(ProSoccerDataBaseSensor):
         ]
 
         return {
-            "messages": [
-                f"{msg.get('date')} | {_sender_name(msg)} | {msg.get('subject')}"
+            "count": len(unread_messages),
+            "latest_subject": unread_messages[0].get("subject") if unread_messages else None,
+            "messages": "\n".join(
+                f"• {msg.get('date')} | {_sender_name(msg)} | {msg.get('subject')}"
                 for msg in unread_messages[:30]
-            ]
+            )
         }
 
 class ProSoccerDataAccountSensor(ProSoccerDataBaseSensor):
