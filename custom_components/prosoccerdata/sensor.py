@@ -32,7 +32,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: ProSoccerDataCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: ProSoccerDataCoordinator = entry.runtime_data
 
     entities = []
     for player in coordinator.players:
@@ -72,7 +72,8 @@ class ProSoccerDataBaseSensor(CoordinatorEntity, SensorEntity):
         club = player.get("platform", "ProSoccerData")
 
         self._attr_unique_id = f"prosoccerdata_{member_id}_{key}"
-        self._attr_name = f"{first} {last} – {name_suffix}"
+        self._attr_has_entity_name = True
+        self._attr_name = name_suffix
         self._attr_icon = icon
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(member_id))},
