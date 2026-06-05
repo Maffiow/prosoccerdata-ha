@@ -1,52 +1,338 @@
-# ProSoccerData – Home Assistant Integration
+# ⚽ ProSoccerData for Home Assistant
 
-Track your kids' soccer matches from [app.prosoccerdata.com](https://app.prosoccerdata.com) directly in Home Assistant.
+Track your ProSoccerData players, matches, payments, team information and account details directly in Home Assistant.
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+This fork extends the original integration with additional financial, profile, team and account sensors.
 
-## Features
+---
 
-- One sensor per player showing the **date of their last played match**
-- Attributes on each sensor:
-  - Opponent, score, home/away, competition
-  - Venue (full address)
-  - Meeting time and meeting location
-  - Attendance state
-  - List of the 10 most recent matches
-- Updates every 30 minutes
+## ✨ Features
 
-## Installation via HACS
+* Multi-player support
+* Previous match tracking
+* Match history attributes
+* Payment request tracking
+* Total paid calculation
+* Team information
+* Member profile information
+* Account information
+* HACS compatible
 
-1. Open HACS → Integrations → ⋮ → Custom repositories
-2. Add `https://github.com/janmeermans/prosoccerdata-ha`, category **Integration**
-3. Click **Install** on *ProSoccerData*
-4. Restart Home Assistant
-5. Go to **Settings → Devices & Services → Add Integration** and search for *ProSoccerData*
+---
 
-## Manual Installation
+## 📦 Installation via HACS
 
-Copy the `custom_components/prosoccerdata` folder into your HA `config/custom_components/` directory, then restart HA.
+1. Open **HACS**
+2. Go to **Integrations**
+3. Click **⋮ → Custom repositories**
+4. Add:
 
-## Configuration
+```text
+https://github.com/Maffiow/prosoccerdata-ha
+```
 
-The setup wizard will ask for:
-1. Your **email** and **password** for app.prosoccerdata.com
-2. Which **players (kids)** you want to track
+5. Select **Integration**
+6. Install **ProSoccerData**
+7. Restart Home Assistant
+8. Add the integration via:
 
-## Sensor
+```text
+Settings → Devices & Services → Add Integration
+```
 
-| Property | Value |
-|----------|-------|
-| State | `YYYY-MM-DD` of last match |
-| Icon | `mdi:soccer` |
-| `team` | Player's team name |
-| `opponent` | Opponent team |
-| `score` | Match score (e.g. `2-1`) |
-| `home_away` | `Home` or `Away` |
-| `competition` | Competition name |
-| `location` | Venue address |
-| `meeting_hour` | Assembly time |
-| `meeting_location` | Assembly location address |
-| `attendance_state` | e.g. `PRESENT` |
-| `full_title` | Full match title (e.g. `Home FC - Away FC`) |
-| `recent_matches` | List of last 10 matches |
+---
+
+## ⚙️ Configuration
+
+The integration will ask for:
+
+* ProSoccerData email
+* ProSoccerData password
+* Player selection
+
+---
+
+# 📊 Available Sensors
+
+## ⚽ Last Match
+
+**Entity**
+
+```text
+sensor.<player>_last_match
+```
+
+**State**
+
+* Last played match date
+
+**Attributes**
+
+```yaml
+match_start:
+match_end:
+team:
+opponent:
+score:
+home_away:
+competition:
+location:
+meeting_hour:
+attendance_state:
+full_title:
+recent_matches:
+```
+
+---
+
+## 💰 Last Payment Amount
+
+**Entity**
+
+```text
+sensor.<player>_last_payment_amount
+```
+
+**State**
+
+Latest payment request amount.
+
+**Unit**
+
+```text
+EUR
+```
+
+---
+
+## ✅ Last Payment Status
+
+**Entity**
+
+```text
+sensor.<player>_last_payment_status
+```
+
+**Possible states**
+
+```text
+paid
+pending
+overdue
+unpaid
+```
+
+**Attributes**
+
+```yaml
+id:
+description:
+amount:
+sent_date:
+due_date:
+paid:
+```
+
+---
+
+## 💸 Total Paid
+
+**Entity**
+
+```text
+sensor.<player>_total_paid
+```
+
+**State**
+
+Total amount of all fetched payment requests with status `paid`.
+
+**Unit**
+
+```text
+EUR
+```
+
+---
+
+## 🔢 Payment Count
+
+**Entity**
+
+```text
+sensor.<player>_payment_count
+```
+
+**Attributes**
+
+```yaml
+payment_requests:
+```
+
+---
+
+## 👤 Profile
+
+**Entity**
+
+```text
+sensor.<player>_profile
+```
+
+**State**
+
+Player full name.
+
+### Attributes
+
+```yaml
+member_id:
+first_name:
+last_name:
+nickname:
+local_name:
+birth_date:
+age:
+status:
+active:
+gender:
+keeper:
+foot:
+shirt_number:
+language:
+uuid:
+central_psd_id:
+profile_picture_url:
+```
+
+---
+
+## 🏆 Team
+
+**Entity**
+
+```text
+sensor.<player>_team
+```
+
+**State**
+
+Current team name.
+
+### Attributes
+
+```yaml
+team_id:
+team_ids:
+team_name:
+team_subcategory:
+team_international:
+team_international_subcategory:
+club_id:
+club_international:
+role_name:
+function_title:
+main_sportive_role:
+main_sportive_role_id:
+```
+
+---
+
+## 🔐 Account
+
+**Entity**
+
+```text
+sensor.<player>_account
+```
+
+**State**
+
+Username.
+
+### Attributes
+
+```yaml
+user_id:
+username:
+email:
+central_user_id:
+is_active:
+first_login_date:
+last_login_date:
+notifications_view:
+accepted_terms_of_use:
+has_profile_picture:
+profile_picture_version:
+creation_date:
+last_modified_date:
+link_status:
+external:
+uid:
+```
+
+---
+
+# 🧾 Example Entities
+
+For a player called **Tiziano Perrone**:
+
+```text
+sensor.tiziano_perrone_last_match
+sensor.tiziano_perrone_last_payment_amount
+sensor.tiziano_perrone_last_payment_status
+sensor.tiziano_perrone_total_paid
+sensor.tiziano_perrone_payment_count
+sensor.tiziano_perrone_profile
+sensor.tiziano_perrone_team
+sensor.tiziano_perrone_account
+```
+
+---
+
+# 📋 Example Dashboard
+
+```yaml
+type: entities
+title: ProSoccerData
+entities:
+  - sensor.tiziano_perrone_last_match
+  - sensor.tiziano_perrone_team
+  - sensor.tiziano_perrone_profile
+  - sensor.tiziano_perrone_last_payment_amount
+  - sensor.tiziano_perrone_last_payment_status
+  - sensor.tiziano_perrone_total_paid
+  - sensor.tiziano_perrone_payment_count
+```
+
+---
+
+# 🔌 API Data Sources
+
+This integration retrieves data from:
+
+* Previous Matches
+* Payment Requests
+* Team Information
+* Member Profile Information
+* Account Information
+
+---
+
+# 📝 Notes
+
+* Payment descriptions depend on data returned by ProSoccerData.
+* Total paid is calculated from fetched payment requests.
+* ProSoccerData API endpoints are private and may change without notice.
+
+---
+
+# 🙏 Credits
+
+Original project:
+
+https://github.com/janmeermans/prosoccerdata-ha
+
+Extended fork:
+
+https://github.com/Maffiow/prosoccerdata-ha
