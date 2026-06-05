@@ -16,6 +16,8 @@ This fork extends the original integration with additional financial, profile, t
 * Team information
 * Member profile information
 * Account information
+* Mailbox integration
+* Inbox and unread message tracking
 * HACS compatible
 
 ---
@@ -207,6 +209,130 @@ sensor.<player>_team
 
 ---
 
+## 📨 Message Count
+
+**Entity**
+
+```text
+sensor.<player>_message_count
+```
+
+| Property | Value                          |
+| -------- | ------------------------------ |
+| State    | Total number of inbox messages |
+| Icon     | mdi:email                      |
+
+---
+
+## 📬 Unread Message Count
+
+**Entity**
+
+```text
+sensor.<player>_unread_message_count
+```
+
+| Property | Value                           |
+| -------- | ------------------------------- |
+| State    | Number of unread inbox messages |
+| Icon     | mdi:email-alert                 |
+
+---
+
+## 📩 Last Message
+
+**Entity**
+
+```text
+sensor.<player>_last_message
+```
+
+| Property        | Value                               |
+| --------------- | ----------------------------------- |
+| State           | Subject of the latest inbox message |
+| Icon            | mdi:email-open-outline              |
+| id              | Message ID                          |
+| sender          | Sender name                         |
+| date            | Message date                        |
+| first_sentence  | Message preview                     |
+| unread          | Unread flag                         |
+| has_attachments | Indicates attachments               |
+| attachments     | List of attachments                 |
+| receivers       | Receiver information                |
+
+---
+
+## 📥 Messages
+
+**Entity**
+
+```text
+sensor.<player>_messages
+```
+
+| Property           | Value                            |
+| ------------------ | -------------------------------- |
+| State              | Number of fetched inbox messages |
+| Icon               | mdi:email-multiple-outline       |
+| total_elements     | Total mailbox messages           |
+| number_of_elements | Number of fetched messages       |
+| total_pages        | Mailbox pages                    |
+| messages           | List of mailbox messages         |
+
+### Message Attributes
+
+Each message contains:
+
+| Property        | Value                |
+| --------------- | -------------------- |
+| id              | Message ID           |
+| subject         | Message subject      |
+| sender          | Sender name          |
+| date            | Message date         |
+| first_sentence  | Message preview      |
+| unread          | Read status          |
+| deleted         | Deleted flag         |
+| draft           | Draft flag           |
+| has_attachments | Attachment indicator |
+| attachments     | Attachment details   |
+| receivers       | Receiver details     |
+
+---
+
+## 📭 Unread Messages
+
+**Entity**
+
+```text
+sensor.<player>_unread_messages
+```
+
+| Property | Value                        |
+| -------- | ---------------------------- |
+| State    | Number of unread messages    |
+| Icon     | mdi:email-alert-outline      |
+| messages | List of unread messages only |
+
+### Unread Message Attributes
+
+Each unread message contains:
+
+| Property        | Value                |
+| --------------- | -------------------- |
+| id              | Message ID           |
+| subject         | Message subject      |
+| sender          | Sender name          |
+| date            | Message date         |
+| first_sentence  | Message preview      |
+| unread          | Always true          |
+| has_attachments | Attachment indicator |
+| attachments     | Attachment details   |
+| receivers       | Receiver details     |
+
+---
+
+
+
 ## 🔐 Account
 
 **Entity**
@@ -248,6 +374,8 @@ This integration retrieves data from:
 * Team Information
 * Member Profile Information
 * Account Information
+* Mailbox Inbox Messages
+* Mailbox Unread Messages
 
 ---
 
