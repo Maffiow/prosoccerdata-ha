@@ -62,26 +62,20 @@ The integration will ask for:
 sensor.<player>_last_match
 ```
 
-**State**
-
-* Last played match date
-
-**Attributes**
-
-```yaml
-match_start:
-match_end:
-team:
-opponent:
-score:
-home_away:
-competition:
-location:
-meeting_hour:
-attendance_state:
-full_title:
-recent_matches:
-```
+| Property         | Value                    |
+| ---------------- | ------------------------ |
+| State            | YYYY-MM-DD of last match |
+| Icon             | mdi:soccer               |
+| team             | Player's team name       |
+| opponent         | Opponent team            |
+| score            | Match score (e.g. 2-1)   |
+| home_away        | Home or Away             |
+| competition      | Competition name         |
+| location         | Venue address            |
+| meeting_hour     | Assembly time            |
+| attendance_state | Attendance status        |
+| full_title       | Full match title         |
+| recent_matches   | List of last 10 matches  |
 
 ---
 
@@ -93,15 +87,11 @@ recent_matches:
 sensor.<player>_last_payment_amount
 ```
 
-**State**
-
-Latest payment request amount.
-
-**Unit**
-
-```text
-EUR
-```
+| Property | Value                 |
+| -------- | --------------------- |
+| State    | Latest payment amount |
+| Unit     | EUR                   |
+| Icon     | mdi:cash              |
 
 ---
 
@@ -113,25 +103,16 @@ EUR
 sensor.<player>_last_payment_status
 ```
 
-**Possible states**
-
-```text
-paid
-pending
-overdue
-unpaid
-```
-
-**Attributes**
-
-```yaml
-id:
-description:
-amount:
-sent_date:
-due_date:
-paid:
-```
+| Property    | Value                             |
+| ----------- | --------------------------------- |
+| State       | paid / pending / overdue / unpaid |
+| Icon        | mdi:cash-check                    |
+| id          | Payment request ID                |
+| description | Payment description               |
+| amount      | Requested amount                  |
+| sent_date   | Request creation date             |
+| due_date    | Due date                          |
+| paid        | Payment status information        |
 
 ---
 
@@ -143,15 +124,11 @@ paid:
 sensor.<player>_total_paid
 ```
 
-**State**
-
-Total amount of all fetched payment requests with status `paid`.
-
-**Unit**
-
-```text
-EUR
-```
+| Property | Value             |
+| -------- | ----------------- |
+| State    | Total paid amount |
+| Unit     | EUR               |
+| Icon     | mdi:cash-multiple |
 
 ---
 
@@ -163,11 +140,11 @@ EUR
 sensor.<player>_payment_count
 ```
 
-**Attributes**
-
-```yaml
-payment_requests:
-```
+| Property         | Value                              |
+| ---------------- | ---------------------------------- |
+| State            | Number of fetched payment requests |
+| Icon             | mdi:counter                        |
+| payment_requests | List of payment requests           |
 
 ---
 
@@ -179,31 +156,27 @@ payment_requests:
 sensor.<player>_profile
 ```
 
-**State**
-
-Player full name.
-
-### Attributes
-
-```yaml
-member_id:
-first_name:
-last_name:
-nickname:
-local_name:
-birth_date:
-age:
-status:
-active:
-gender:
-keeper:
-foot:
-shirt_number:
-language:
-uuid:
-central_psd_id:
-profile_picture_url:
-```
+| Property            | Value               |
+| ------------------- | ------------------- |
+| State               | Full player name    |
+| Icon                | mdi:account         |
+| member_id           | PSD member ID       |
+| first_name          | First name          |
+| last_name           | Last name           |
+| nickname            | Nickname            |
+| local_name          | Local name          |
+| birth_date          | Date of birth       |
+| age                 | Player age          |
+| status              | Member status       |
+| active              | Active flag         |
+| gender              | Gender              |
+| keeper              | Goalkeeper flag     |
+| foot                | Preferred foot      |
+| shirt_number        | Shirt number        |
+| language            | PSD language        |
+| uuid                | Member UUID         |
+| central_psd_id      | PSD central ID      |
+| profile_picture_url | Profile picture URL |
 
 ---
 
@@ -215,26 +188,22 @@ profile_picture_url:
 sensor.<player>_team
 ```
 
-**State**
-
-Current team name.
-
-### Attributes
-
-```yaml
-team_id:
-team_ids:
-team_name:
-team_subcategory:
-team_international:
-team_international_subcategory:
-club_id:
-club_international:
-role_name:
-function_title:
-main_sportive_role:
-main_sportive_role_id:
-```
+| Property                       | Value                  |
+| ------------------------------ | ---------------------- |
+| State                          | Current team name      |
+| Icon                           | mdi:account-group      |
+| team_id                        | Team ID                |
+| team_ids                       | Team IDs               |
+| team_name                      | Team name              |
+| team_subcategory               | Team subgroup          |
+| team_international             | International team     |
+| team_international_subcategory | International subgroup |
+| club_id                        | Club ID                |
+| club_international             | International club     |
+| role_name                      | Role name              |
+| function_title                 | Function title         |
+| main_sportive_role             | Main sportive role     |
+| main_sportive_role_id          | Main sportive role ID  |
 
 ---
 
@@ -246,66 +215,29 @@ main_sportive_role_id:
 sensor.<player>_account
 ```
 
-**State**
-
-Username.
-
-### Attributes
-
-```yaml
-user_id:
-username:
-email:
-central_user_id:
-is_active:
-first_login_date:
-last_login_date:
-notifications_view:
-accepted_terms_of_use:
-has_profile_picture:
-profile_picture_version:
-creation_date:
-last_modified_date:
-link_status:
-external:
-uid:
-```
+| Property                | Value                     |
+| ----------------------- | ------------------------- |
+| State                   | Username                  |
+| Icon                    | mdi:account-key           |
+| user_id                 | User ID                   |
+| username                | Username                  |
+| email                   | Account email             |
+| central_user_id         | PSD central user ID       |
+| is_active               | Active account            |
+| first_login_date        | First login               |
+| last_login_date         | Last login                |
+| notifications_view      | Last notifications view   |
+| accepted_terms_of_use   | Terms accepted            |
+| has_profile_picture     | Profile picture available |
+| profile_picture_version | Profile picture version   |
+| creation_date           | Account creation date     |
+| last_modified_date      | Last modification date    |
+| link_status             | PSD link status           |
+| external                | External account flag     |
+| uid                     | Internal UID              |
 
 ---
 
-# 🧾 Example Entities
-
-For a player called **Tiziano Perrone**:
-
-```text
-sensor.tiziano_perrone_last_match
-sensor.tiziano_perrone_last_payment_amount
-sensor.tiziano_perrone_last_payment_status
-sensor.tiziano_perrone_total_paid
-sensor.tiziano_perrone_payment_count
-sensor.tiziano_perrone_profile
-sensor.tiziano_perrone_team
-sensor.tiziano_perrone_account
-```
-
----
-
-# 📋 Example Dashboard
-
-```yaml
-type: entities
-title: ProSoccerData
-entities:
-  - sensor.tiziano_perrone_last_match
-  - sensor.tiziano_perrone_team
-  - sensor.tiziano_perrone_profile
-  - sensor.tiziano_perrone_last_payment_amount
-  - sensor.tiziano_perrone_last_payment_status
-  - sensor.tiziano_perrone_total_paid
-  - sensor.tiziano_perrone_payment_count
-```
-
----
 
 # 🔌 API Data Sources
 
