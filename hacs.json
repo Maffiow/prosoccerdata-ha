@@ -1,6 +1,6 @@
 {
   "name": "ProSoccerData",
-  "description": "Track your kids' soccer matches from ProSoccerData (app.prosoccerdata.com)",
+  "description": "Track ProSoccerData matches, payments, teams and player profiles in Home Assistant",
   "render_readme": true,
   "homeassistant": "2024.1.0"
 }
