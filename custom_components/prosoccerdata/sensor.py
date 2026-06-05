@@ -46,6 +46,11 @@ async def async_setup_entry(
                 ProSoccerDataProfileSensor(coordinator, player),
                 ProSoccerDataTeamSensor(coordinator, player),
                 ProSoccerDataAccountSensor(coordinator, player),
+                ProSoccerDataMessageCountSensor(coordinator, player),
+                ProSoccerDataUnreadMessageCountSensor(coordinator, player),
+                ProSoccerDataLastMessageSensor(coordinator, player),
+                ProSoccerDataMessagesSensor(coordinator, player),
+                ProSoccerDataUnreadMessagesSensor(coordinator, player),
             ]
         )
 
@@ -381,6 +386,207 @@ class ProSoccerDataTeamSensor(ProSoccerDataBaseSensor):
             "main_sportive_role_id": member.get("mainSportiveRoleId"),
         }
 
+def _sender_name(message: dict) -> str | None:
+    sender = message.get("sender") or {}
+    first = sender.get("firstName")
+    last = sender.get("lastName")
+
+    if first or last:
+        return f"{first or ''} {last or ''}".strip()
+
+    return None
+
+
+def _message_is_unread(message: dict) -> bool:
+    receivers = message.get("receivers") or []
+
+    return any(
+        receiver.get("read") is False
+        for receiver in receivers
+    )
+
+
+def _message_summary(message: dict) -> dict:
+    attachments = message.get("attachments") or []
+    receivers = message.get("receivers") or []
+
+    return {
+        "id": message.get("id"),
+        "subject": message.get("subject"),
+        "sender": _sender_name(message),
+        "date": message.get("date"),
+        "first_sentence": message.get("firstSentence"),
+        "deleted": message.get("deleted"),
+        "draft": message.get("draft"),
+        "unread": _message_is_unread(message),
+        "has_attachments": len(attachments) > 0,
+        "attachments": [
+            {
+                "file_name": attachment.get("fileName"),
+                "url": attachment.get("attachmentUrl"),
+            }
+            for attachment in attachments
+        ],
+        "receivers": [
+            {
+                "id": receiver.get("id"),
+                "type": receiver.get("type"),
+                "status": receiver.get("status"),
+                "read": receiver.get("read"),
+                "marked": receiver.get("marked"),
+                "external_sent_date": receiver.get("externalSentDate"),
+            }
+            for receiver in receivers
+        ],
+    }
+
+class ProSoccerDataMessageCountSensor(ProSoccerDataBaseSensor):
+    """Sensor showing total PSD inbox message count."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="message_count",
+            name_suffix="Message Count",
+            icon="mdi:email",
+        )
+
+    @property
+    def native_value(self) -> int:
+        data = self._player_data
+        messages_data = (data or {}).get("messages_data") or {}
+        messages = (data or {}).get("messages", [])
+
+        return messages_data.get("totalElements", len(messages))
+
+class ProSoccerDataUnreadMessageCountSensor(ProSoccerDataBaseSensor):
+    """Sensor showing unread PSD inbox message count."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="unread_message_count",
+            name_suffix="Unread Message Count",
+            icon="mdi:email-alert",
+        )
+
+    @property
+    def native_value(self) -> int:
+        data = self._player_data
+        messages = (data or {}).get("messages", [])
+
+        return sum(
+            1
+            for message in messages
+            if _message_is_unread(message)
+        )
+
+class ProSoccerDataLastMessageSensor(ProSoccerDataBaseSensor):
+    """Sensor showing latest PSD inbox message."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="last_message",
+            name_suffix="Last Message",
+            icon="mdi:email-open-outline",
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        data = self._player_data
+        message = (data or {}).get("last_message") or {}
+
+        return message.get("subject")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._player_data
+        message = (data or {}).get("last_message") or {}
+
+        if not message:
+            return {}
+
+        return _message_summary(message)
+
+class ProSoccerDataMessagesSensor(ProSoccerDataBaseSensor):
+    """Sensor showing all fetched PSD inbox messages."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="messages",
+            name_suffix="Messages",
+            icon="mdi:email-multiple-outline",
+        )
+
+    @property
+    def native_value(self) -> int:
+        data = self._player_data
+        messages = (data or {}).get("messages", [])
+
+        return len(messages)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._player_data
+        messages_data = (data or {}).get("messages_data") or {}
+        messages = (data or {}).get("messages", [])
+
+        return {
+            "total_elements": messages_data.get("totalElements"),
+            "number_of_elements": messages_data.get("numberOfElements"),
+            "total_pages": messages_data.get("totalPages"),
+            "messages": [
+                _message_summary(message)
+                for message in messages[:30]
+            ],
+        }
+
+class ProSoccerDataUnreadMessagesSensor(ProSoccerDataBaseSensor):
+    """Sensor showing all unread PSD inbox messages."""
+
+    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
+        super().__init__(
+            coordinator,
+            player,
+            key="unread_messages",
+            name_suffix="Unread Messages",
+            icon="mdi:email-alert-outline",
+        )
+
+    @property
+    def native_value(self) -> int:
+        data = self._player_data
+        messages = (data or {}).get("messages", [])
+
+        return sum(
+            1
+            for message in messages
+            if _message_is_unread(message)
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self._player_data
+        messages = (data or {}).get("messages", [])
+
+        unread_messages = [
+            message
+            for message in messages
+            if _message_is_unread(message)
+        ]
+
+        return {
+            "messages": [
+                _message_summary(message)
+                for message in unread_messages[:30]
+            ]
+        }
 
 class ProSoccerDataAccountSensor(ProSoccerDataBaseSensor):
     """Sensor showing account information."""

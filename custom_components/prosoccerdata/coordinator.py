@@ -34,6 +34,12 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
 
                 payment_requests = await self.api.get_payment_requests(player)
                 teams = await self.api.get_teams(player)
+                
+                unread_messages_data = await self.api.get_unread_messages(player)
+                unread_messages = unread_messages_data.get("content", [])
+
+                messages_data = await self.api.get_messages(player)
+                messages = messages_data.get("content", [])
 
                 result[str(member_id)] = {
                     "player": player,
@@ -42,6 +48,12 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
                     "payment_requests": payment_requests,
                     "last_payment_request": payment_requests[0] if payment_requests else None,
                     "teams": teams,
+                    "unread_messages_data": unread_messages_data,
+                    "unread_messages": unread_messages,
+                    "last_unread_message": unread_messages[0] if unread_messages else None,
+                    "messages_data": messages_data,
+                    "messages": messages,
+                    "last_message": messages[0] if messages else None,
                 }
 
                 _LOGGER.debug(
@@ -61,6 +73,12 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator):
                     "payment_requests": [],
                     "last_payment_request": None,
                     "teams": {},
+                    "unread_messages_data": {},
+                    "unread_messages": [],
+                    "last_unread_message": None,
+                    "messages_data": {},
+                    "messages": [],
+                    "last_message": None,
                 }
 
         if not result:

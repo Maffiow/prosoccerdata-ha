@@ -347,6 +347,102 @@ class ProSoccerDataAPI:
             _LOGGER.error("get_teams error: %s", err)
             return {}
 
+    async def get_unread_messages(self, player: dict, count: int = 30) -> dict:
+        api_url = player.get("apiURL", "").rstrip("/")
+        plat_url = player.get("platformURL", "").rstrip("/")
+
+        pat = await self._ensure_platform_token(player)
+        if not pat:
+            return {}
+
+        platform_id = player["platformId"]
+        cookie = self._build_platform_cookie(platform_id)
+
+        url = yarl.URL(
+            f"{api_url}/mailbox/unread"
+            f"?size={count}&page=0&sort=creation_date,desc",
+            encoded=True,
+        )
+
+        try:
+            resp = await self._session.get(
+                url,
+                headers=self._plat_headers(
+                    plat_url,
+                    {
+                        "Cookie": cookie,
+                        "Content-Type": "text/plain",
+                        "Referer": f"{plat_url}/dashboard",
+                    },
+                ),
+            )
+
+            _LOGGER.debug("get_unread_messages → HTTP %s", resp.status)
+
+            if resp.status == 200:
+                data = await resp.json(content_type=None)
+                return data if isinstance(data, dict) else {}
+
+            if resp.status == 401:
+                self._platform_tokens.pop(platform_id, None)
+                return {}
+
+            body = await resp.text()
+            _LOGGER.warning("get_unread_messages HTTP %s: %s", resp.status, body[:500])
+            return {}
+
+        except aiohttp.ClientError as err:
+            _LOGGER.error("get_unread_messages error: %s", err)
+            return {}
+
+    async def get_messages(self, player: dict, count: int = 30) -> dict:
+        api_url = player.get("apiURL", "").rstrip("/")
+        plat_url = player.get("platformURL", "").rstrip("/")
+
+        pat = await self._ensure_platform_token(player)
+        if not pat:
+            return {}
+
+        platform_id = player["platformId"]
+        cookie = self._build_platform_cookie(platform_id)
+
+        url = yarl.URL(
+            f"{api_url}/mailbox/status/INBOX"
+            f"?size={count}&page=0&sort=creation_date,desc",
+            encoded=True,
+        )
+
+        try:
+            resp = await self._session.get(
+                url,
+                headers=self._plat_headers(
+                    plat_url,
+                    {
+                        "Cookie": cookie,
+                        "Content-Type": "text/plain",
+                        "Referer": f"{plat_url}/mail?page=list",
+                    },
+                ),
+            )
+
+            _LOGGER.debug("get_messages → HTTP %s", resp.status)
+
+            if resp.status == 200:
+                data = await resp.json(content_type=None)
+                return data if isinstance(data, dict) else {}
+
+            if resp.status == 401:
+                self._platform_tokens.pop(platform_id, None)
+                return {}
+
+            body = await resp.text()
+            _LOGGER.warning("get_messages HTTP %s: %s", resp.status, body[:500])
+            return {}
+
+        except aiohttp.ClientError as err:
+            _LOGGER.error("get_messages error: %s", err)
+            return {}
+
     @staticmethod
     def parse_match(event: dict) -> dict:
         subtype = event.get("subtype", "")
