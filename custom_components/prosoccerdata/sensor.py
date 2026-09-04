@@ -1,139 +1,155 @@
+"""Sensors for the ProSoccerData integration."""
+
+from __future__ import annotations
+
 import logging
+from datetime import date
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import ProSoccerDataConfigEntry
 from .const import (
-    DOMAIN,
-    ATTR_TEAM,
-    ATTR_OPPONENT,
-    ATTR_SCORE,
-    ATTR_HOME_AWAY,
-    ATTR_COMPETITION,
-    ATTR_LOCATION,
-    ATTR_MEETING_HOUR,
-    ATTR_RECENT_MATCHES,
-    ATTR_MATCH_START,
-    ATTR_MATCH_END,
     ATTR_ATTENDANCE,
+    ATTR_COMPETITION,
+    ATTR_HOME_AWAY,
+    ATTR_LOCATION,
+    ATTR_MATCH_END,
+    ATTR_MATCH_START,
+    ATTR_MEETING_HOUR,
+    ATTR_OPPONENT,
+    ATTR_RECENT_MATCHES,
+    ATTR_SCORE,
+    ATTR_TEAM,
+    DOMAIN,
+    MATCH_ATTRIBUTE_LIMIT,
+    MESSAGE_ATTRIBUTE_LIMIT,
 )
-from .coordinator import ProSoccerDataCoordinator
+from .coordinator import ProSoccerDataCoordinator, player_name
 
 _LOGGER = logging.getLogger(__name__)
+
+CURRENCY_EURO = "EUR"
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    entry: ProSoccerDataConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    coordinator: ProSoccerDataCoordinator = entry.runtime_data
+    """Set up the ProSoccerData sensors."""
+    coordinator = entry.runtime_data
 
-    entities = []
+    entities: list[ProSoccerDataBaseSensor] = []
     for player in coordinator.players:
         entities.extend(
-            [
-                ProSoccerDataLastMatchSensor(coordinator, player),
-                ProSoccerDataLastPaymentAmountSensor(coordinator, player),
-                ProSoccerDataLastPaymentStatusSensor(coordinator, player),
-                ProSoccerDataTotalPaidSensor(coordinator, player),
-                ProSoccerDataPaymentCountSensor(coordinator, player),
-                ProSoccerDataProfileSensor(coordinator, player),
-                ProSoccerDataTeamSensor(coordinator, player),
-                ProSoccerDataAccountSensor(coordinator, player),
-                ProSoccerDataMessageCountSensor(coordinator, player),
-                ProSoccerDataUnreadMessageCountSensor(coordinator, player),
-                ProSoccerDataLastMessageSensor(coordinator, player),
-                ProSoccerDataMessagesSensor(coordinator, player),
-                ProSoccerDataUnreadMessagesSensor(coordinator, player),
-            ]
+            sensor_class(coordinator, player)
+            for sensor_class in (
+                ProSoccerDataLastMatchSensor,
+                ProSoccerDataLastPaymentAmountSensor,
+                ProSoccerDataLastPaymentStatusSensor,
+                ProSoccerDataTotalPaidSensor,
+                ProSoccerDataPaymentCountSensor,
+                ProSoccerDataProfileSensor,
+                ProSoccerDataTeamSensor,
+                ProSoccerDataAccountSensor,
+                ProSoccerDataMessageCountSensor,
+                ProSoccerDataUnreadMessageCountSensor,
+                ProSoccerDataLastMessageSensor,
+                ProSoccerDataMessagesSensor,
+            )
         )
 
     async_add_entities(entities)
 
 
-class ProSoccerDataBaseSensor(CoordinatorEntity, SensorEntity):
+class ProSoccerDataBaseSensor(CoordinatorEntity[ProSoccerDataCoordinator], SensorEntity):
     """Base sensor for ProSoccerData."""
 
+    _attr_has_entity_name = True
+
+    # Set by each subclass; also used for the unique_id suffix, so changing one
+    # of these renames the entity.
+    _key: str
+
     def __init__(
-        self,
-        coordinator: ProSoccerDataCoordinator,
-        player: dict,
-        key: str,
-        name_suffix: str,
-        icon: str,
+        self, coordinator: ProSoccerDataCoordinator, player: dict[str, Any]
     ) -> None:
+        """Initialise the sensor."""
         super().__init__(coordinator)
         self._player = player
 
         member_id = player["platformMemberId"]
-        first = player.get("platformUserFirstName") or player.get("platformMemberFirstName", "?")
-        last = player.get("platformUserLastName") or player.get("platformMemberLastName", "?")
         club = player.get("platform", "ProSoccerData")
 
-        self._attr_unique_id = f"prosoccerdata_{member_id}_{key}"
-        self._attr_has_entity_name = True
-        self._attr_name = name_suffix
-        self._attr_icon = icon
+        self._attr_unique_id = f"prosoccerdata_{member_id}_{self._key}"
+        self._attr_translation_key = self._key
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(member_id))},
-            name=f"{first} {last}",
+            name=player_name(player),
             manufacturer="ProSoccerData",
             model=club,
             configuration_url=player.get("platformURL"),
         )
 
     @property
-    def _player_data(self) -> dict | None:
+    def available(self) -> bool:
+        """Only report available when this player actually has data."""
+        return super().available and self._player_data is not None
+
+    @property
+    def _player_data(self) -> dict[str, Any] | None:
         if not self.coordinator.data:
             return None
         return self.coordinator.data.get(str(self._player["platformMemberId"]))
 
-
-class ProSoccerDataLastMatchSensor(ProSoccerDataBaseSensor):
-    """Sensor showing last match date."""
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="last_match",
-            name_suffix="Last Match",
-            icon="mdi:soccer",
-        )
+    def _section(self, key: str, default: Any) -> Any:
+        """Return one block of this player's data, falling back to `default`."""
+        data = self._player_data
+        if not data:
+            return default
+        return data.get(key) or default
 
     @property
-    def native_value(self) -> str | None:
-        data = self._player_data
-        if data and data.get("last_match"):
-            return data["last_match"].get("date")
-        return None
+    def _teams(self) -> dict[str, Any]:
+        return self._section("teams", {})
+
+
+class ProSoccerDataLastMatchSensor(ProSoccerDataBaseSensor):
+    """Date of the player's most recent match."""
+
+    _key = "last_match"
+    _attr_device_class = SensorDeviceClass.DATE
+    _unrecorded_attributes = frozenset({ATTR_RECENT_MATCHES})
+
+    @property
+    def native_value(self) -> date | None:
+        """Return the match date."""
+        last = self._section("last_match", {})
+        raw = last.get("date")
+
+        if not raw:
+            return None
+
+        try:
+            return date.fromisoformat(raw)
+        except (TypeError, ValueError):
+            _LOGGER.debug("Unparseable match date %r", raw)
+            return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        if not data:
-            return {}
-
-        last = data.get("last_match") or {}
-        recent = data.get("matches", [])
-
-        recent_summary = [
-            {
-                "date": m.get("date"),
-                "opponent": m.get("opponent"),
-                "score": m.get("score"),
-                "home_away": m.get("home_away"),
-                "competition": m.get("competition"),
-                "cancelled": m.get("cancelled"),
-            }
-            for m in recent[:10]
-        ]
+        """Return details of the last match plus a short history."""
+        last = self._section("last_match", {})
+        recent = self._section("matches", [])
 
         return {
             ATTR_MATCH_START: last.get("start"),
@@ -147,66 +163,52 @@ class ProSoccerDataLastMatchSensor(ProSoccerDataBaseSensor):
             ATTR_MEETING_HOUR: last.get("meeting_hour"),
             ATTR_ATTENDANCE: last.get("attendance"),
             "full_title": last.get("full_title"),
-            ATTR_RECENT_MATCHES: recent_summary,
+            ATTR_RECENT_MATCHES: [
+                {
+                    "date": match.get("date"),
+                    "opponent": match.get("opponent"),
+                    "score": match.get("score"),
+                    "home_away": match.get("home_away"),
+                    "competition": match.get("competition"),
+                    "cancelled": match.get("cancelled"),
+                }
+                for match in recent[:MATCH_ATTRIBUTE_LIMIT]
+            ],
         }
 
 
 class ProSoccerDataLastPaymentAmountSensor(ProSoccerDataBaseSensor):
-    """Sensor showing latest payment amount."""
+    """Amount of the most recent payment request."""
 
-    _attr_native_unit_of_measurement = "EUR"
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="last_payment_amount",
-            name_suffix="Last Payment Amount",
-            icon="mdi:cash",
-        )
+    _key = "last_payment_amount"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = CURRENCY_EURO
 
     @property
     def native_value(self) -> float | None:
-        data = self._player_data
-        payment = (data or {}).get("last_payment_request") or {}
-        amount = payment.get("amount")
-
-        try:
-            return float(amount) if amount is not None else None
-        except (TypeError, ValueError):
-            return None
+        """Return the requested amount."""
+        payment = self._section("last_payment_request", {})
+        return _as_float(payment.get("amount"))
 
 
 class ProSoccerDataLastPaymentStatusSensor(ProSoccerDataBaseSensor):
-    """Sensor showing latest payment status."""
+    """Status of the most recent payment request."""
 
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="last_payment_status",
-            name_suffix="Last Payment Status",
-            icon="mdi:cash-check",
-        )
+    _key = "last_payment_status"
 
     @property
     def native_value(self) -> str | None:
-        data = self._player_data
-        payment = (data or {}).get("last_payment_request") or {}
-        return payment.get("status")
+        """Return the payment status."""
+        return self._section("last_payment_request", {}).get("status")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        payment = (data or {}).get("last_payment_request") or {}
+        """Return details of the most recent payment request."""
+        payment = self._section("last_payment_request", {})
 
         return {
             "id": payment.get("id"),
-            "description": (
-                payment.get("description")
-                or payment.get("name")
-                or payment.get("title")
-            ),
+            "description": _payment_description(payment),
             "amount": payment.get("amount"),
             "sent_date": payment.get("sentDate"),
             "due_date": payment.get("dueDate"),
@@ -215,108 +217,75 @@ class ProSoccerDataLastPaymentStatusSensor(ProSoccerDataBaseSensor):
 
 
 class ProSoccerDataTotalPaidSensor(ProSoccerDataBaseSensor):
-    """Sensor showing total paid amount from fetched payment requests."""
+    """Total of the fetched payment requests that are marked paid."""
 
-    _attr_native_unit_of_measurement = "EUR"
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="total_paid",
-            name_suffix="Total Paid",
-            icon="mdi:cash-multiple",
-        )
+    _key = "total_paid"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_native_unit_of_measurement = CURRENCY_EURO
 
     @property
     def native_value(self) -> float:
-        data = self._player_data
-        payments = (data or {}).get("payment_requests", [])
-
-        total = 0.0
-        for payment in payments:
-            if payment.get("status") == "paid":
-                amount = payment.get("amount")
-                try:
-                    if amount is not None:
-                        total += float(amount)
-                except (TypeError, ValueError):
-                    pass
-
-        return total
+        """Return the sum of the paid payment requests."""
+        return round(
+            sum(
+                _as_float(payment.get("amount")) or 0.0
+                for payment in self._section("payment_requests", [])
+                if payment.get("status") == "paid"
+            ),
+            2,
+        )
 
 
 class ProSoccerDataPaymentCountSensor(ProSoccerDataBaseSensor):
-    """Sensor showing number of fetched payment requests."""
+    """Number of fetched payment requests."""
 
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="payment_count",
-            name_suffix="Payment Count",
-            icon="mdi:counter",
-        )
+    _key = "payment_count"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"payment_requests"})
 
     @property
     def native_value(self) -> int:
-        data = self._player_data
-        payments = (data or {}).get("payment_requests", [])
-        return len(payments)
+        """Return how many payment requests were fetched."""
+        return len(self._section("payment_requests", []))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        payments = (data or {}).get("payment_requests", [])
+        """Return a summary of the fetched payment requests."""
+        payments = self._section("payment_requests", [])
 
         return {
             "payment_requests": [
                 {
-                    "id": p.get("id"),
-                    "description": (
-                        p.get("description")
-                        or p.get("name")
-                        or p.get("title")
-                    ),
-                    "amount": p.get("amount"),
-                    "status": p.get("status"),
-                    "sent_date": p.get("sentDate"),
-                    "due_date": p.get("dueDate"),
-                    "paid": p.get("paid"),
+                    "id": payment.get("id"),
+                    "description": _payment_description(payment),
+                    "amount": payment.get("amount"),
+                    "status": payment.get("status"),
+                    "sent_date": payment.get("sentDate"),
+                    "due_date": payment.get("dueDate"),
+                    "paid": payment.get("paid"),
                 }
-                for p in payments[:10]
+                for payment in payments[:MATCH_ATTRIBUTE_LIMIT]
             ]
         }
 
 
 class ProSoccerDataProfileSensor(ProSoccerDataBaseSensor):
-    """Sensor showing member profile information."""
+    """Member profile information."""
 
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="profile",
-            name_suffix="Profile",
-            icon="mdi:account",
-        )
+    _key = "profile"
 
     @property
     def native_value(self) -> str | None:
-        data = self._player_data
-        member = ((data or {}).get("teams") or {}).get("member", {})
-        first = member.get("firstName")
-        last = member.get("lastName")
-
-        if first or last:
-            return f"{first or ''} {last or ''}".strip()
-
-        return None
+        """Return the member's full name."""
+        member = self._teams.get("member") or {}
+        name = f"{member.get('firstName') or ''} {member.get('lastName') or ''}".strip()
+        return name or None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        member = ((data or {}).get("teams") or {}).get("member", {})
+        """Return the member's profile fields."""
+        member = self._teams.get("member") or {}
 
         return {
             "member_id": member.get("id"),
@@ -340,23 +309,19 @@ class ProSoccerDataProfileSensor(ProSoccerDataBaseSensor):
 
 
 class ProSoccerDataTeamSensor(ProSoccerDataBaseSensor):
-    """Sensor showing member team information."""
+    """Team information for the member."""
 
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="team",
-            name_suffix="Team",
-            icon="mdi:account-group",
-        )
+    _key = "team"
+
+    @property
+    def _user_member(self) -> dict[str, Any]:
+        return (self._teams.get("user") or {}).get("member") or {}
 
     @property
     def native_value(self) -> str | None:
-        data = self._player_data
-        teams_data = (data or {}).get("teams") or {}
-        user_member = ((teams_data.get("user") or {}).get("member") or {})
-        member = teams_data.get("member") or {}
+        """Return the team name."""
+        user_member = self._user_member
+        member = self._teams.get("member") or {}
 
         return (
             user_member.get("myTeamName")
@@ -366,10 +331,9 @@ class ProSoccerDataTeamSensor(ProSoccerDataBaseSensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        teams_data = (data or {}).get("teams") or {}
-        user_member = ((teams_data.get("user") or {}).get("member") or {})
-        member = teams_data.get("member") or {}
+        """Return the member's team and club fields."""
+        user_member = self._user_member
+        member = self._teams.get("member") or {}
 
         return {
             "team_id": member.get("teamId") or user_member.get("team"),
@@ -377,242 +341,33 @@ class ProSoccerDataTeamSensor(ProSoccerDataBaseSensor):
             "team_name": user_member.get("myTeamName") or user_member.get("teamName"),
             "team_subcategory": user_member.get("teamSubcategory"),
             "team_international": member.get("teamInternational"),
-            "team_international_subcategory": user_member.get("teamInternationalSubcategory"),
+            "team_international_subcategory": user_member.get(
+                "teamInternationalSubcategory"
+            ),
             "club_id": member.get("clubId") or user_member.get("clubId"),
             "club_international": member.get("clubInternational"),
             "role_name": user_member.get("roleName"),
-            "function_title": member.get("functionTitle") or user_member.get("functionTitle"),
+            "function_title": member.get("functionTitle")
+            or user_member.get("functionTitle"),
             "main_sportive_role": user_member.get("mainSportiveRole"),
             "main_sportive_role_id": member.get("mainSportiveRoleId"),
         }
 
-def _sender_name(message: dict) -> str | None:
-    sender = message.get("sender") or {}
-    first = sender.get("firstName")
-    last = sender.get("lastName")
-
-    if first or last:
-        return f"{first or ''} {last or ''}".strip()
-
-    return None
-
-
-def _message_is_unread(message: dict) -> bool:
-    receivers = message.get("receivers") or []
-
-    return any(
-        receiver.get("read") is False
-        for receiver in receivers
-    )
-
-
-def _message_summary(message: dict) -> dict:
-    attachments = message.get("attachments") or []
-    receivers = message.get("receivers") or []
-
-    return {
-        "id": message.get("id"),
-        "subject": message.get("subject"),
-        "sender": _sender_name(message),
-        "date": message.get("date"),
-        "first_sentence": message.get("firstSentence"),
-        "deleted": message.get("deleted"),
-        "draft": message.get("draft"),
-        "unread": _message_is_unread(message),
-        "has_attachments": len(attachments) > 0,
-        "attachments": [
-            {
-                "file_name": attachment.get("fileName"),
-                "url": attachment.get("attachmentUrl"),
-            }
-            for attachment in attachments
-        ],
-        "receivers": [
-            {
-                "id": receiver.get("id"),
-                "type": receiver.get("type"),
-                "status": receiver.get("status"),
-                "read": receiver.get("read"),
-                "marked": receiver.get("marked"),
-                "external_sent_date": receiver.get("externalSentDate"),
-            }
-            for receiver in receivers
-        ],
-    }
-
-class ProSoccerDataMessageCountSensor(ProSoccerDataBaseSensor):
-    """Sensor showing total PSD inbox message count."""
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="message_count",
-            name_suffix="Message Count",
-            icon="mdi:email",
-        )
-
-    @property
-    def native_value(self) -> int:
-        data = self._player_data
-        messages_data = (data or {}).get("messages_data") or {}
-        messages = (data or {}).get("messages", [])
-
-        return messages_data.get("totalElements", len(messages))
-
-class ProSoccerDataUnreadMessageCountSensor(ProSoccerDataBaseSensor):
-    """Sensor showing unread PSD inbox message count."""
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="unread_message_count",
-            name_suffix="Unread Message Count",
-            icon="mdi:email-alert",
-        )
-
-    @property
-    def native_value(self) -> int:
-        data = self._player_data
-        messages = (data or {}).get("messages", [])
-
-        return sum(
-            1
-            for message in messages
-            if _message_is_unread(message)
-        )
-
-class ProSoccerDataLastMessageSensor(ProSoccerDataBaseSensor):
-    """Sensor showing latest PSD inbox message."""
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="last_message",
-            name_suffix="Last Message",
-            icon="mdi:email-open-outline",
-        )
-
-    @property
-    def native_value(self) -> str | None:
-        data = self._player_data
-        message = (data or {}).get("last_message") or {}
-
-        return message.get("subject")
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        message = (data or {}).get("last_message") or {}
-
-        if not message:
-            return {}
-
-        return _message_summary(message)
-
-class ProSoccerDataMessagesSensor(ProSoccerDataBaseSensor):
-    """Sensor showing all fetched PSD inbox messages."""
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="messages",
-            name_suffix="Messages",
-            icon="mdi:email-multiple-outline",
-        )
-
-    @property
-    def native_value(self) -> int:
-        data = self._player_data
-        messages = (data or {}).get("messages", [])
-
-        return len(messages)
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        messages_data = (data or {}).get("messages_data") or {}
-        messages = (data or {}).get("messages", [])
-
-        return {
-            "total_elements": messages_data.get("totalElements"),
-            "number_of_elements": messages_data.get("numberOfElements"),
-            "total_pages": messages_data.get("totalPages"),
-            "messages": [
-                _message_summary(message)
-                for message in messages[:30]
-            ],
-        }
-
-class ProSoccerDataUnreadMessagesSensor(ProSoccerDataBaseSensor):
-    """Sensor showing all unread PSD inbox messages."""
-
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="unread_messages",
-            name_suffix="Unread Messages",
-            icon="mdi:email-alert-outline",
-        )
-
-    @property
-    def native_value(self) -> int:
-        data = self._player_data
-        messages = (data or {}).get("messages", [])
-
-        return sum(
-            1
-            for message in messages
-            if _message_is_unread(message)
-        )
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        messages = (data or {}).get("messages", [])
-
-        unread_messages = [
-            message
-            for message in messages
-            if _message_is_unread(message)
-        ]
-
-        return {
-            "count": len(unread_messages),
-            "latest_subject": unread_messages[0].get("subject") if unread_messages else None,
-            "messages": "\n".join(
-                f"• {msg.get('date')} | {_sender_name(msg)} | {msg.get('subject')}"
-                for msg in unread_messages[:30]
-            )
-        }
 
 class ProSoccerDataAccountSensor(ProSoccerDataBaseSensor):
-    """Sensor showing account information."""
+    """ProSoccerData account information."""
 
-    def __init__(self, coordinator: ProSoccerDataCoordinator, player: dict) -> None:
-        super().__init__(
-            coordinator,
-            player,
-            key="account",
-            name_suffix="Account",
-            icon="mdi:account-key",
-        )
+    _key = "account"
 
     @property
     def native_value(self) -> str | None:
-        data = self._player_data
-        user = ((data or {}).get("teams") or {}).get("user", {})
-        return user.get("username")
+        """Return the account username."""
+        return (self._teams.get("user") or {}).get("username")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        data = self._player_data
-        teams_data = (data or {}).get("teams") or {}
-        user = teams_data.get("user") or {}
+        """Return the account fields."""
+        user = self._teams.get("user") or {}
         user_member = user.get("member") or {}
 
         return {
@@ -633,3 +388,179 @@ class ProSoccerDataAccountSensor(ProSoccerDataBaseSensor):
             "external": user_member.get("external"),
             "uid": user_member.get("uid"),
         }
+
+
+class ProSoccerDataMessageCountSensor(ProSoccerDataBaseSensor):
+    """Total number of inbox messages reported by ProSoccerData."""
+
+    _key = "message_count"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self) -> int:
+        """Return the inbox total."""
+        messages_data = self._section("messages_data", {})
+        return messages_data.get("totalElements", len(self._section("messages", [])))
+
+
+class ProSoccerDataUnreadMessageCountSensor(ProSoccerDataBaseSensor):
+    """Number of unread messages in the fetched inbox page."""
+
+    _key = "unread_message_count"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"messages", "messages_text"})
+
+    @property
+    def _unread(self) -> list[dict[str, Any]]:
+        return [
+            message
+            for message in self._section("messages", [])
+            if _message_is_unread(message)
+        ]
+
+    @property
+    def native_value(self) -> int:
+        """Return how many fetched messages are unread."""
+        return len(self._unread)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the unread messages, both structured and as a ready-made list."""
+        unread = self._unread
+
+        return {
+            "latest_subject": unread[0].get("subject") if unread else None,
+            "messages": [
+                _message_summary(message)
+                for message in unread[:MESSAGE_ATTRIBUTE_LIMIT]
+            ],
+            "messages_text": "\n".join(
+                f"• {message.get('date')} | {_sender_name(message)}"
+                f" | {message.get('subject')}"
+                for message in unread[:MESSAGE_ATTRIBUTE_LIMIT]
+            ),
+        }
+
+
+class ProSoccerDataLastMessageSensor(ProSoccerDataBaseSensor):
+    """Subject of the most recent inbox message."""
+
+    _key = "last_message"
+    _unrecorded_attributes = frozenset({"attachments", "receivers"})
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the subject of the newest message."""
+        return self._section("last_message", {}).get("subject")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the full detail of the newest message."""
+        message = self._section("last_message", {})
+
+        if not message:
+            return {}
+
+        return _message_summary(message, full=True)
+
+
+class ProSoccerDataMessagesSensor(ProSoccerDataBaseSensor):
+    """Number of fetched inbox messages, with a summary of each."""
+
+    _key = "messages"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"messages"})
+
+    @property
+    def native_value(self) -> int:
+        """Return how many messages were fetched."""
+        return len(self._section("messages", []))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return a summary of the fetched messages."""
+        messages_data = self._section("messages_data", {})
+        messages = self._section("messages", [])
+
+        return {
+            "total_elements": messages_data.get("totalElements"),
+            "number_of_elements": messages_data.get("numberOfElements"),
+            "total_pages": messages_data.get("totalPages"),
+            "messages": [
+                _message_summary(message)
+                for message in messages[:MESSAGE_ATTRIBUTE_LIMIT]
+            ],
+        }
+
+
+def _as_float(value: Any) -> float | None:
+    """Return `value` as a float, or None when it is not numeric."""
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _payment_description(payment: dict[str, Any]) -> str | None:
+    return payment.get("description") or payment.get("name") or payment.get("title")
+
+
+def _sender_name(message: dict[str, Any]) -> str | None:
+    sender = message.get("sender") or {}
+    name = f"{sender.get('firstName') or ''} {sender.get('lastName') or ''}".strip()
+    return name or None
+
+
+def _message_is_unread(message: dict[str, Any]) -> bool:
+    return any(
+        receiver.get("read") is False for receiver in message.get("receivers") or []
+    )
+
+
+def _message_summary(message: dict[str, Any], *, full: bool = False) -> dict[str, Any]:
+    """Summarise a message.
+
+    The compact form is used for list attributes, which are written to the
+    recorder on every update; only the single newest message carries the full
+    attachment and receiver detail.
+    """
+    attachments = message.get("attachments") or []
+    receivers = message.get("receivers") or []
+
+    summary: dict[str, Any] = {
+        "id": message.get("id"),
+        "subject": message.get("subject"),
+        "sender": _sender_name(message),
+        "date": message.get("date"),
+        "first_sentence": message.get("firstSentence"),
+        "unread": _message_is_unread(message),
+        "attachment_count": len(attachments),
+        "receiver_count": len(receivers),
+    }
+
+    if not full:
+        return summary
+
+    return {
+        **summary,
+        "deleted": message.get("deleted"),
+        "draft": message.get("draft"),
+        "attachments": [
+            {
+                "file_name": attachment.get("fileName"),
+                "url": attachment.get("attachmentUrl"),
+            }
+            for attachment in attachments
+        ],
+        "receivers": [
+            {
+                "id": receiver.get("id"),
+                "type": receiver.get("type"),
+                "status": receiver.get("status"),
+                "read": receiver.get("read"),
+                "marked": receiver.get("marked"),
+                "external_sent_date": receiver.get("externalSentDate"),
+            }
+            for receiver in receivers
+        ],
+    }

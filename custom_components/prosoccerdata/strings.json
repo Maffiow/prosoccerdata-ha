@@ -15,16 +15,63 @@
         "data": {
           "player_ids": "Players"
         }
+      },
+      "reauth_confirm": {
+        "title": "ProSoccerData – Sign in again",
+        "description": "Enter the current password for {email}.",
+        "data": {
+          "password": "Password"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Could not reach ProSoccerData. Try again later.",
       "no_players": "Login succeeded but no players were found on this account.",
       "no_players_selected": "Please select at least one player.",
       "unknown": "Unexpected error – check the Home Assistant logs."
     },
     "abort": {
-      "already_configured": "This ProSoccerData account is already configured."
+      "already_configured": "This ProSoccerData account is already configured.",
+      "reauth_successful": "ProSoccerData was signed in again."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ProSoccerData – Options",
+        "description": "Choose which players to track and how often to poll ProSoccerData.",
+        "data": {
+          "player_ids": "Players",
+          "scan_interval_minutes": "Update interval"
+        },
+        "data_description": {
+          "scan_interval_minutes": "How often ProSoccerData is polled, in minutes."
+        }
+      }
+    },
+    "error": {
+      "no_players_selected": "Please select at least one player."
+    },
+    "abort": {
+      "invalid_auth": "The stored password is no longer valid. Sign in again first.",
+      "cannot_connect": "Could not reach ProSoccerData. Try again later."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_match": { "name": "Last Match" },
+      "last_payment_amount": { "name": "Last Payment Amount" },
+      "last_payment_status": { "name": "Last Payment Status" },
+      "total_paid": { "name": "Total Paid" },
+      "payment_count": { "name": "Payment Count" },
+      "profile": { "name": "Profile" },
+      "team": { "name": "Team" },
+      "account": { "name": "Account" },
+      "message_count": { "name": "Message Count" },
+      "unread_message_count": { "name": "Unread Message Count" },
+      "last_message": { "name": "Last Message" },
+      "messages": { "name": "Messages" }
     }
   }
 }
