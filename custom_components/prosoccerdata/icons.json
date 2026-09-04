@@ -1,18 +1,53 @@
 {
   "entity": {
     "sensor": {
-      "last_match": { "default": "mdi:soccer" },
-      "last_payment_amount": { "default": "mdi:cash" },
-      "last_payment_status": { "default": "mdi:cash-check" },
-      "total_paid": { "default": "mdi:cash-multiple" },
-      "payment_count": { "default": "mdi:counter" },
-      "profile": { "default": "mdi:account" },
-      "team": { "default": "mdi:account-group" },
-      "account": { "default": "mdi:account-key" },
-      "message_count": { "default": "mdi:email" },
-      "unread_message_count": { "default": "mdi:email-alert" },
-      "last_message": { "default": "mdi:email-open-outline" },
-      "messages": { "default": "mdi:email-multiple-outline" }
+      "next_match": {
+        "default": "mdi:soccer-field"
+      },
+      "next_training": {
+        "default": "mdi:whistle"
+      },
+      "last_match": {
+        "default": "mdi:soccer"
+      },
+      "last_payment_amount": {
+        "default": "mdi:cash"
+      },
+      "last_payment_status": {
+        "default": "mdi:cash-check"
+      },
+      "total_paid": {
+        "default": "mdi:cash-multiple"
+      },
+      "payment_count": {
+        "default": "mdi:counter"
+      },
+      "profile": {
+        "default": "mdi:account"
+      },
+      "team": {
+        "default": "mdi:account-group"
+      },
+      "account": {
+        "default": "mdi:account-key"
+      },
+      "message_count": {
+        "default": "mdi:email"
+      },
+      "unread_message_count": {
+        "default": "mdi:email-alert"
+      },
+      "last_message": {
+        "default": "mdi:email-open-outline"
+      },
+      "messages": {
+        "default": "mdi:email-multiple-outline"
+      }
+    },
+    "calendar": {
+      "schedule": {
+        "default": "mdi:calendar-clock"
+      }
     }
   }
 }

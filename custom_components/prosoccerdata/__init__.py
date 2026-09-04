@@ -24,7 +24,7 @@ from .coordinator import ProSoccerDataCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.CALENDAR, Platform.SENSOR]
 
 type ProSoccerDataConfigEntry = ConfigEntry[ProSoccerDataCoordinator]
 

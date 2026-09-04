@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from datetime import datetime
 from typing import Any
 
 import aiohttp
@@ -15,6 +16,9 @@ from .const import (
     CENTRAL_TOKEN_HEADER,
     DEFAULT_LANGUAGE,
     DEFAULT_TIME_ZONE,
+    EVENT_TYPE_GAME,
+    EVENT_TYPE_OTHER,
+    EVENT_TYPE_TRAINING,
     LOGIN_URL,
     MATCH_FETCH_COUNT,
     MESSAGE_FETCH_COUNT,
@@ -406,6 +410,23 @@ class ProSoccerDataAPI:
         )
         return self._as_dict(data)
 
+    async def get_schedule(
+        self, player: dict[str, Any], start: datetime, end: datetime
+    ) -> list[dict[str, Any]]:
+        """Return everything scheduled for the player between `start` and `end`.
+
+        Unlike the games endpoints this covers matches, trainings and other
+        events in one call. `start` and `end` are club-local times; the API has
+        no notion of an offset here.
+        """
+        member_id = player["platformMemberId"]
+        data = await self._platform_request(
+            player,
+            f"/schedule/dashboard?from={_fmt_schedule_time(start)}"
+            f"&to={_fmt_schedule_time(end)}&memberId={member_id}",
+        )
+        return self._as_list(data)
+
     async def get_messages(
         self, player: dict[str, Any], count: int = MESSAGE_FETCH_COUNT
     ) -> dict[str, Any]:
@@ -461,6 +482,39 @@ class ProSoccerDataAPI:
             ),
             "cancelled": event.get("cancelled", False),
         }
+
+    @staticmethod
+    def event_type(event: dict[str, Any]) -> str:
+        """Classify a schedule entry as a game, a training or something else."""
+        raw = str(event.get("type") or event.get("eventType") or "").lower()
+
+        if raw in ("game", "match"):
+            return EVENT_TYPE_GAME
+        if raw.startswith("training"):
+            return EVENT_TYPE_TRAINING
+        return EVENT_TYPE_OTHER
+
+    @classmethod
+    def parse_event(cls, event: dict[str, Any]) -> dict[str, Any]:
+        """Flatten a schedule entry, tagged with its event type.
+
+        The match parser does the heavy lifting; the opponent and score it
+        derives from the title only mean something for an actual game.
+        """
+        parsed = cls.parse_match(event)
+        parsed["type"] = cls.event_type(event)
+
+        if parsed["type"] != EVENT_TYPE_GAME:
+            parsed["opponent"] = ""
+            parsed["home_away"] = ""
+            parsed["score"] = None
+
+        return parsed
+
+
+def _fmt_schedule_time(value: datetime) -> str:
+    """Format a datetime the way the schedule endpoint expects it."""
+    return value.strftime("%Y-%m-%d-%H%M%S")
 
 
 def _extract_competition(description: str) -> str:

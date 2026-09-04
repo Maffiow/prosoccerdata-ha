@@ -60,18 +60,53 @@
   },
   "entity": {
     "sensor": {
-      "last_match": { "name": "Last Match" },
-      "last_payment_amount": { "name": "Last Payment Amount" },
-      "last_payment_status": { "name": "Last Payment Status" },
-      "total_paid": { "name": "Total Paid" },
-      "payment_count": { "name": "Payment Count" },
-      "profile": { "name": "Profile" },
-      "team": { "name": "Team" },
-      "account": { "name": "Account" },
-      "message_count": { "name": "Message Count" },
-      "unread_message_count": { "name": "Unread Message Count" },
-      "last_message": { "name": "Last Message" },
-      "messages": { "name": "Messages" }
+      "next_match": {
+        "name": "Next Match"
+      },
+      "next_training": {
+        "name": "Next Training"
+      },
+      "last_match": {
+        "name": "Last Match"
+      },
+      "last_payment_amount": {
+        "name": "Last Payment Amount"
+      },
+      "last_payment_status": {
+        "name": "Last Payment Status"
+      },
+      "total_paid": {
+        "name": "Total Paid"
+      },
+      "payment_count": {
+        "name": "Payment Count"
+      },
+      "profile": {
+        "name": "Profile"
+      },
+      "team": {
+        "name": "Team"
+      },
+      "account": {
+        "name": "Account"
+      },
+      "message_count": {
+        "name": "Message Count"
+      },
+      "unread_message_count": {
+        "name": "Unread Message Count"
+      },
+      "last_message": {
+        "name": "Last Message"
+      },
+      "messages": {
+        "name": "Messages"
+      }
+    },
+    "calendar": {
+      "schedule": {
+        "name": "Schedule"
+      }
     }
   }
 }
