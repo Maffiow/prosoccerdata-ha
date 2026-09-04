@@ -60,18 +60,53 @@
   },
   "entity": {
     "sensor": {
-      "last_match": { "name": "Laatste wedstrijd" },
-      "last_payment_amount": { "name": "Laatste betaalbedrag" },
-      "last_payment_status": { "name": "Laatste betaalstatus" },
-      "total_paid": { "name": "Totaal betaald" },
-      "payment_count": { "name": "Aantal betalingen" },
-      "profile": { "name": "Profiel" },
-      "team": { "name": "Ploeg" },
-      "account": { "name": "Account" },
-      "message_count": { "name": "Aantal berichten" },
-      "unread_message_count": { "name": "Ongelezen berichten" },
-      "last_message": { "name": "Laatste bericht" },
-      "messages": { "name": "Berichten" }
+      "next_match": {
+        "name": "Volgende wedstrijd"
+      },
+      "next_training": {
+        "name": "Volgende training"
+      },
+      "last_match": {
+        "name": "Laatste wedstrijd"
+      },
+      "last_payment_amount": {
+        "name": "Laatste betaalbedrag"
+      },
+      "last_payment_status": {
+        "name": "Laatste betaalstatus"
+      },
+      "total_paid": {
+        "name": "Totaal betaald"
+      },
+      "payment_count": {
+        "name": "Aantal betalingen"
+      },
+      "profile": {
+        "name": "Profiel"
+      },
+      "team": {
+        "name": "Ploeg"
+      },
+      "account": {
+        "name": "Account"
+      },
+      "message_count": {
+        "name": "Aantal berichten"
+      },
+      "unread_message_count": {
+        "name": "Ongelezen berichten"
+      },
+      "last_message": {
+        "name": "Laatste bericht"
+      },
+      "messages": {
+        "name": "Berichten"
+      }
+    },
+    "calendar": {
+      "schedule": {
+        "name": "Planning"
+      }
     }
   }
 }

@@ -9,6 +9,8 @@ Besides match tracking, the integration also exposes financial, profile, team, m
 ## ✨ Features
 
 * Multi-player support
+* A calendar per player with matches, trainings and other events
+* Next match and next training as timestamp sensors
 * Previous match tracking with match history attributes
 * Payment request tracking and total-paid calculation
 * Team, member profile and account information
@@ -56,6 +58,13 @@ own — no removing and reinstalling.
 
 Your account, selected players and options survive the upgrade.
 
+### Upgrading to 0.4.0
+
+Adds a calendar entity and two timestamp sensors per player. Nothing is removed,
+so there is nothing to clean up. If the new entities stay unavailable, the
+schedule endpoint did not answer for your club — the rest of the integration
+keeps working, and `custom_components.prosoccerdata` on debug level says why.
+
 ### Upgrading to 0.3.0
 
 `sensor.<player>_unread_messages` has been removed: it always reported exactly the
@@ -92,7 +101,79 @@ repair notification asking you to sign in again. Nothing has to be removed.
 
 ---
 
-# 📊 Available Sensors
+# 📊 Available Entities
+
+## 📅 Schedule (calendar)
+
+**Entity**
+
+```text
+calendar.<player>_schedule
+```
+
+| Property    | Value                                                       |
+| ----------- | ----------------------------------------------------------- |
+| State       | `on` while an event is running, otherwise `off`              |
+| Icon        | mdi:calendar-clock                                          |
+| summary     | Event title                                                 |
+| location    | Venue, or the meeting point when no venue is set            |
+| description | Opponent, home/away, team, competition, meeting time, attendance |
+
+Matches, trainings and other club events, all in one calendar. Opening a month
+in the calendar panel fetches that range from ProSoccerData directly, so you can
+look further ahead than the 30-day window the sensors use. Cancelled events are
+left out.
+
+---
+
+## ⏭️ Next Match
+
+**Entity**
+
+```text
+sensor.<player>_next_match
+```
+
+| Property         | Value                          |
+| ---------------- | ------------------------------ |
+| State            | Start time (timestamp)         |
+| Icon             | mdi:soccer-field               |
+| title            | Full match title               |
+| event_type       | `game`                         |
+| opponent         | Opponent team                  |
+| home_away        | Home or Away                   |
+| team             | Player's team                  |
+| competition      | Competition name               |
+| location         | Venue address                  |
+| meeting_hour     | Assembly time                  |
+| meeting_location | Assembly address               |
+| match_end        | End time                       |
+| attendance_state | Attendance status              |
+
+Because the state is a real timestamp, a reminder is a one-line trigger:
+
+```yaml
+triggers:
+  - trigger: time
+    at:
+      entity_id: sensor.<player>_next_match
+      offset: "-02:00:00"
+```
+
+---
+
+## 🏃 Next Training
+
+**Entity**
+
+```text
+sensor.<player>_next_training
+```
+
+Same attributes as Next Match, minus `opponent` and `home_away`. Icon
+mdi:whistle.
+
+---
 
 ## ⚽ Last Match
 
@@ -379,6 +460,7 @@ sensor.<player>_account
 
 This integration retrieves data from:
 
+* Schedule (matches, trainings and other events in a date range)
 * Previous Matches
 * Payment Requests
 * Team Information

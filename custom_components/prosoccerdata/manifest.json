@@ -1,14 +1,18 @@
 {
   "domain": "prosoccerdata",
   "name": "ProSoccerData",
-  "codeowners": ["@Maffiow"],
+  "codeowners": [
+    "@Maffiow"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/Maffiow/prosoccerdata-ha",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Maffiow/prosoccerdata-ha/issues",
-  "loggers": ["custom_components.prosoccerdata"],
+  "loggers": [
+    "custom_components.prosoccerdata"
+  ],
   "requirements": [],
-  "version": "0.3.1"
+  "version": "0.4.0"
 }

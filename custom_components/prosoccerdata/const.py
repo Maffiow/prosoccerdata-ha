@@ -29,6 +29,16 @@ MATCH_FETCH_COUNT = 20
 PAYMENT_FETCH_COUNT = 10
 MESSAGE_FETCH_COUNT = 30
 
+# Rolling window the coordinator keeps for the calendar and the next-event
+# sensors. The calendar panel asks for its own range on top of this.
+SCHEDULE_PAST_DAYS = 1
+SCHEDULE_FUTURE_DAYS = 30
+
+# ProSoccerData event types, as used by its own web client.
+EVENT_TYPE_GAME = "game"
+EVENT_TYPE_TRAINING = "training"
+EVENT_TYPE_OTHER = "other"
+
 # How many items end up in list-style state attributes. Every attribute is
 # written to the recorder on each update, so these stay deliberately small.
 MATCH_ATTRIBUTE_LIMIT = 10
@@ -45,3 +55,5 @@ ATTR_RECENT_MATCHES = "recent_matches"
 ATTR_MATCH_START = "match_start"
 ATTR_MATCH_END = "match_end"
 ATTR_ATTENDANCE = "attendance_state"
+ATTR_EVENT_TYPE = "event_type"
+ATTR_TITLE = "title"

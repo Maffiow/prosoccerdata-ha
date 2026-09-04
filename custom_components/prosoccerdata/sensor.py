@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -20,6 +20,7 @@ from . import ProSoccerDataConfigEntry
 from .const import (
     ATTR_ATTENDANCE,
     ATTR_COMPETITION,
+    ATTR_EVENT_TYPE,
     ATTR_HOME_AWAY,
     ATTR_LOCATION,
     ATTR_MATCH_END,
@@ -29,11 +30,16 @@ from .const import (
     ATTR_RECENT_MATCHES,
     ATTR_SCORE,
     ATTR_TEAM,
+    ATTR_TITLE,
     DOMAIN,
     MATCH_ATTRIBUTE_LIMIT,
     MESSAGE_ATTRIBUTE_LIMIT,
 )
-from .coordinator import ProSoccerDataCoordinator, player_name
+from .coordinator import (
+    ProSoccerDataCoordinator,
+    as_local_datetime,
+    player_name,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +59,8 @@ async def async_setup_entry(
         entities.extend(
             sensor_class(coordinator, player)
             for sensor_class in (
+                ProSoccerDataNextMatchSensor,
+                ProSoccerDataNextTrainingSensor,
                 ProSoccerDataLastMatchSensor,
                 ProSoccerDataLastPaymentAmountSensor,
                 ProSoccerDataLastPaymentStatusSensor,
@@ -121,6 +129,74 @@ class ProSoccerDataBaseSensor(CoordinatorEntity[ProSoccerDataCoordinator], Senso
     @property
     def _teams(self) -> dict[str, Any]:
         return self._section("teams", {})
+
+
+class ProSoccerDataNextEventSensor(ProSoccerDataBaseSensor):
+    """Base for the sensors that point at the next scheduled event."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    # Set by each subclass to the coordinator key holding the event.
+    _event_key: str
+
+    @property
+    def _event(self) -> dict[str, Any]:
+        return self._section(self._event_key, {})
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return when the event starts."""
+        return as_local_datetime(self._event.get("start"))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the details of the upcoming event."""
+        event = self._event
+
+        if not event:
+            return {}
+
+        return {
+            ATTR_TITLE: event.get("full_title"),
+            ATTR_EVENT_TYPE: event.get("type"),
+            ATTR_MATCH_END: event.get("end"),
+            ATTR_TEAM: event.get("team"),
+            ATTR_COMPETITION: event.get("competition"),
+            ATTR_LOCATION: event.get("location"),
+            ATTR_MEETING_HOUR: event.get("meeting_hour"),
+            "meeting_location": event.get("meeting_location"),
+            ATTR_ATTENDANCE: event.get("attendance"),
+        }
+
+
+class ProSoccerDataNextMatchSensor(ProSoccerDataNextEventSensor):
+    """When the player's next match starts."""
+
+    _key = "next_match"
+    _event_key = "next_match"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the details of the upcoming match."""
+        attributes = super().extra_state_attributes
+
+        if not attributes:
+            return {}
+
+        event = self._event
+
+        return {
+            **attributes,
+            ATTR_OPPONENT: event.get("opponent"),
+            ATTR_HOME_AWAY: event.get("home_away"),
+        }
+
+
+class ProSoccerDataNextTrainingSensor(ProSoccerDataNextEventSensor):
+    """When the player's next training starts."""
+
+    _key = "next_training"
+    _event_key = "next_training"
 
 
 class ProSoccerDataLastMatchSensor(ProSoccerDataBaseSensor):
