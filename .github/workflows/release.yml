@@ -1,0 +1,53 @@
+name: Release
+
+# HACS reads the newest GitHub release tag to decide whether an update is
+# available. This turns "bump the version in manifest.json and push" into a
+# published release, so the update shows up in Home Assistant on its own.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - custom_components/prosoccerdata/manifest.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read the version from manifest.json
+        id: manifest
+        run: |
+          version="$(jq -er .version custom_components/prosoccerdata/manifest.json)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Manifest version: ${version}"
+
+      - name: Skip when this version was already released
+        id: check
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${{ steps.manifest.outputs.version }}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v${{ steps.manifest.outputs.version }} already exists, nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create the release
+        if: steps.check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.manifest.outputs.version }}
+          name: v${{ steps.manifest.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true

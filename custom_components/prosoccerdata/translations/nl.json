@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ProSoccerData – Aanmelden",
+        "description": "Geef je inloggegevens voor {url}",
+        "data": {
+          "email": "E-mailadres",
+          "password": "Wachtwoord"
+        }
+      },
+      "select_players": {
+        "title": "ProSoccerData – Spelers kiezen",
+        "description": "Kies welke spelers je wil opvolgen.",
+        "data": {
+          "player_ids": "Spelers"
+        }
+      },
+      "reauth_confirm": {
+        "title": "ProSoccerData – Opnieuw aanmelden",
+        "description": "Geef het huidige wachtwoord voor {email}.",
+        "data": {
+          "password": "Wachtwoord"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ongeldig e-mailadres of wachtwoord.",
+      "cannot_connect": "ProSoccerData is niet bereikbaar. Probeer het later opnieuw.",
+      "no_players": "Aanmelden is gelukt, maar er zijn geen spelers gevonden op dit account.",
+      "no_players_selected": "Kies minstens één speler.",
+      "unknown": "Onverwachte fout – bekijk het Home Assistant-logboek."
+    },
+    "abort": {
+      "already_configured": "Dit ProSoccerData-account is al geconfigureerd.",
+      "reauth_successful": "ProSoccerData is opnieuw aangemeld."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ProSoccerData – Opties",
+        "description": "Kies welke spelers je opvolgt en hoe vaak ProSoccerData wordt bevraagd.",
+        "data": {
+          "player_ids": "Spelers",
+          "scan_interval_minutes": "Bijwerkinterval"
+        },
+        "data_description": {
+          "scan_interval_minutes": "Hoe vaak ProSoccerData wordt bevraagd, in minuten."
+        }
+      }
+    },
+    "error": {
+      "no_players_selected": "Kies minstens één speler."
+    },
+    "abort": {
+      "invalid_auth": "Het opgeslagen wachtwoord is niet meer geldig. Meld je eerst opnieuw aan.",
+      "cannot_connect": "ProSoccerData is niet bereikbaar. Probeer het later opnieuw."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_match": { "name": "Laatste wedstrijd" },
+      "last_payment_amount": { "name": "Laatste betaalbedrag" },
+      "last_payment_status": { "name": "Laatste betaalstatus" },
+      "total_paid": { "name": "Totaal betaald" },
+      "payment_count": { "name": "Aantal betalingen" },
+      "profile": { "name": "Profiel" },
+      "team": { "name": "Ploeg" },
+      "account": { "name": "Account" },
+      "message_count": { "name": "Aantal berichten" },
+      "unread_message_count": { "name": "Ongelezen berichten" },
+      "last_message": { "name": "Laatste bericht" },
+      "messages": { "name": "Berichten" }
+    }
+  }
+}

@@ -2,55 +2,93 @@
 
 Track your ProSoccerData players, matches, payments, team information and account details directly in Home Assistant.
 
-This fork extends the original integration with additional financial, profile, team and account sensors.
+Besides match tracking, the integration also exposes financial, profile, team, mailbox and account sensors.
 
 ---
 
 ## ✨ Features
 
 * Multi-player support
-* Previous match tracking
-* Match history attributes
-* Payment request tracking
-* Total paid calculation
-* Team information
-* Member profile information
-* Account information
-* Mailbox integration
-* Inbox and unread message tracking
-* HACS compatible
+* Previous match tracking with match history attributes
+* Payment request tracking and total-paid calculation
+* Team, member profile and account information
+* Mailbox integration with inbox and unread message tracking
+* Reconfigurable players and polling interval, without reinstalling
+* Re-authentication prompt when your ProSoccerData password changes
+* Diagnostics download with credentials and personal data redacted
+* Installed and updated through HACS
+
+---
+
+## ✅ Requirements
+
+* Home Assistant **2026.3** or newer (needed for the integration's own icon)
+* HACS **2.0** or newer
+* A ProSoccerData account with at least one linked player
 
 ---
 
 ## 📦 Installation via HACS
 
 1. Open **HACS**
-2. Go to **Integrations**
-3. Click **⋮ → Custom repositories**
-4. Add:
+2. Click **⋮ → Custom repositories**
+3. Add the repository, with type **Integration**:
 
 ```text
 https://github.com/Maffiow/prosoccerdata-ha
 ```
 
-5. Select **Integration**
-6. Install **ProSoccerData**
-7. Restart Home Assistant
-8. Add the integration via:
+4. Search for **ProSoccerData** and download it
+5. Restart Home Assistant
+6. Go to **Settings → Devices & Services → Add Integration** and pick **ProSoccerData**
 
-```text
-Settings → Devices & Services → Add Integration
-```
+---
+
+## ⬆️ Upgrading
+
+Every version is published as a GitHub release, so HACS picks new ones up on its
+own — no removing and reinstalling.
+
+1. HACS shows **Update** on the ProSoccerData card (use **⋮ → Update information**
+   to check immediately)
+2. Click **Update**
+3. Restart Home Assistant
+
+Your account, selected players and options survive the upgrade.
+
+### Upgrading to 0.3.0
+
+`sensor.<player>_unread_messages` has been removed: it always reported exactly the
+same number as `sensor.<player>_unread_message_count`, which now carries the unread
+list in its attributes. After updating, delete the leftover entity under
+**Settings → Devices & Services → Entities** (it will show as *restored*), and point
+any automation that used it at `sensor.<player>_unread_message_count` instead.
 
 ---
 
 ## ⚙️ Configuration
 
-The integration will ask for:
+The integration asks for:
 
 * ProSoccerData email
 * ProSoccerData password
-* Player selection
+* Which players to track
+
+### Options
+
+**Settings → Devices & Services → ProSoccerData → Configure** lets you change:
+
+| Option          | Default    | Notes                          |
+| --------------- | ---------- | ------------------------------ |
+| Players         | –          | Add or remove tracked players  |
+| Update interval | 30 minutes | Between 5 and 1440 minutes     |
+
+Changing an option reloads the integration straight away.
+
+### Password changes
+
+When ProSoccerData starts refusing the stored password, Home Assistant raises a
+repair notification asking you to sign in again. Nothing has to be removed.
 
 ---
 
@@ -66,7 +104,7 @@ sensor.<player>_last_match
 
 | Property         | Value                    |
 | ---------------- | ------------------------ |
-| State            | YYYY-MM-DD of last match |
+| State            | Date of the last match   |
 | Icon             | mdi:soccer               |
 | team             | Player's team name       |
 | opponent         | Opponent team            |
@@ -232,13 +270,18 @@ sensor.<player>_message_count
 sensor.<player>_unread_message_count
 ```
 
-| Property | Value                           |
-| -------- | ------------------------------- |
-| State    | Number of unread inbox messages |
-| Icon     | mdi:email-alert                 |
+| Property       | Value                                            |
+| -------------- | ------------------------------------------------ |
+| State          | Number of unread inbox messages                  |
+| Icon           | mdi:email-alert                                  |
+| latest_subject | Subject of the newest unread message             |
+| messages       | List of unread messages (max 15)                 |
+| messages_text  | The same list as one ready-to-notify text block  |
+
+> Replaces the former `sensor.<player>_unread_messages`, which reported the
+> same number. See [Upgrading](#-upgrading).
 
 ---
-
 ## 📩 Last Message
 
 **Entity**
@@ -247,21 +290,26 @@ sensor.<player>_unread_message_count
 sensor.<player>_last_message
 ```
 
-| Property        | Value                               |
-| --------------- | ----------------------------------- |
-| State           | Subject of the latest inbox message |
-| Icon            | mdi:email-open-outline              |
-| id              | Message ID                          |
-| sender          | Sender name                         |
-| date            | Message date                        |
-| first_sentence  | Message preview                     |
-| unread          | Unread flag                         |
-| has_attachments | Indicates attachments               |
-| attachments     | List of attachments                 |
-| receivers       | Receiver information                |
+| Property         | Value                               |
+| ---------------- | ----------------------------------- |
+| State            | Subject of the latest inbox message |
+| Icon             | mdi:email-open-outline              |
+| id               | Message ID                          |
+| sender           | Sender name                         |
+| date             | Message date                        |
+| first_sentence   | Message preview                     |
+| unread           | Unread flag                         |
+| attachment_count | Number of attachments               |
+| receiver_count   | Number of receivers                 |
+| deleted          | Deleted flag                        |
+| draft            | Draft flag                          |
+| attachments      | List of attachments                 |
+| receivers        | Receiver information                |
+
+Only this sensor carries the full `attachments` and `receivers` detail; the
+list sensors keep counts instead, to stay out of the recorder database.
 
 ---
-
 ## 📥 Messages
 
 **Entity**
@@ -270,69 +318,31 @@ sensor.<player>_last_message
 sensor.<player>_messages
 ```
 
-| Property           | Value                            |
-| ------------------ | -------------------------------- |
-| State              | Number of fetched inbox messages |
-| Icon               | mdi:email-multiple-outline       |
-| total_elements     | Total mailbox messages           |
-| number_of_elements | Number of fetched messages       |
-| total_pages        | Mailbox pages                    |
-| messages           | List of mailbox messages         |
+| Property           | Value                              |
+| ------------------ | ---------------------------------- |
+| State              | Number of fetched inbox messages   |
+| Icon               | mdi:email-multiple-outline         |
+| total_elements     | Total mailbox messages             |
+| number_of_elements | Number of fetched messages         |
+| total_pages        | Mailbox pages                      |
+| messages           | List of mailbox messages (max 15)  |
 
 ### Message Attributes
 
-Each message contains:
+Each message in a list attribute contains:
 
-| Property        | Value                |
-| --------------- | -------------------- |
-| id              | Message ID           |
-| subject         | Message subject      |
-| sender          | Sender name          |
-| date            | Message date         |
-| first_sentence  | Message preview      |
-| unread          | Read status          |
-| deleted         | Deleted flag         |
-| draft           | Draft flag           |
-| has_attachments | Attachment indicator |
-| attachments     | Attachment details   |
-| receivers       | Receiver details     |
+| Property         | Value                 |
+| ---------------- | --------------------- |
+| id               | Message ID            |
+| subject          | Message subject       |
+| sender           | Sender name           |
+| date             | Message date          |
+| first_sentence   | Message preview       |
+| unread           | Read status           |
+| attachment_count | Number of attachments |
+| receiver_count   | Number of receivers   |
 
 ---
-
-## 📭 Unread Messages
-
-**Entity**
-
-```text
-sensor.<player>_unread_messages
-```
-
-| Property | Value                        |
-| -------- | ---------------------------- |
-| State    | Number of unread messages    |
-| Icon     | mdi:email-alert-outline      |
-| messages | List of unread messages only |
-
-### Unread Message Attributes
-
-Each unread message contains:
-
-| Property        | Value                |
-| --------------- | -------------------- |
-| id              | Message ID           |
-| subject         | Message subject      |
-| sender          | Sender name          |
-| date            | Message date         |
-| first_sentence  | Message preview      |
-| unread          | Always true          |
-| has_attachments | Attachment indicator |
-| attachments     | Attachment details   |
-| receivers       | Receiver details     |
-
----
-
-
-
 ## 🔐 Account
 
 **Entity**
@@ -374,25 +384,44 @@ This integration retrieves data from:
 * Team Information
 * Member Profile Information
 * Account Information
-* Mailbox Inbox Messages
-* Mailbox Unread Messages
+* Mailbox Inbox Messages (unread state is derived from these)
 
 ---
 
 # 📝 Notes
 
-* Payment descriptions depend on data returned by ProSoccerData.
-* Total paid is calculated from fetched payment requests.
-* ProSoccerData API endpoints are private and may change without notice.
+* Payment descriptions depend on the data ProSoccerData returns.
+* Total paid is calculated from the fetched payment requests, not the full history.
+* ProSoccerData's API endpoints are private and may change without notice.
+* List attributes (`recent_matches`, `messages`, `payment_requests`) are excluded
+  from the recorder, so they never grow your database.
+* Entity names follow your Home Assistant language; English and Dutch are shipped.
 
 ---
 
-# 🙏 Credits
+# 🛠️ Releasing
 
-Original project:
+Home Assistant and HACS compare the newest GitHub release tag against what is
+installed, so a release is what makes an update appear.
 
-https://github.com/janmeermans/prosoccerdata-ha
+1. Bump `version` in `custom_components/prosoccerdata/manifest.json`
+2. Commit and push to `main`
 
-Extended fork:
+The **Release** workflow then tags `v<version>` and publishes the release. The
+**Validate** workflow runs hassfest and the HACS action on every push, pull
+request and weekly, so a broken manifest is caught before it ships.
+
+---
+
+# 📄 Project
+
+Repository:
 
 https://github.com/Maffiow/prosoccerdata-ha
+
+Issues and feature requests:
+
+https://github.com/Maffiow/prosoccerdata-ha/issues
+
+ProSoccerData is a product of ProSoccerData NV. This integration is community-built and is not
+affiliated with, endorsed by, or supported by ProSoccerData.
