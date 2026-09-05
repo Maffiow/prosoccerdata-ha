@@ -103,6 +103,15 @@ repair notification asking you to sign in again. Nothing has to be removed.
 
 # 📊 Available Entities
 
+> **Entity IDs follow your Home Assistant language.** Home Assistant builds an
+> entity ID from the translated entity name the first time it sees an entity, so
+> on a Dutch installation `sensor.<player>_next_match` is created as
+> `sensor.<player>_volgende_wedstrijd` and the calendar as
+> `calendar.<player>_planning`. Entities that already existed keep the ID they
+> were created with. The names below are the English ones; check
+> **Settings → Devices & Services → Entities** for what your install actually
+> used, and rename there if you want them to match.
+
 ## 📅 Schedule (calendar)
 
 **Entity**
