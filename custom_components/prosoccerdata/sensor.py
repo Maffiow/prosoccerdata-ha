@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import ProSoccerDataConfigEntry
 from .const import (
@@ -40,6 +41,7 @@ from .const import (
     MESSAGE_BODY_LIMIT,
     SEASON_MATCH_ATTRIBUTE_LIMIT,
     SEASON_START_MONTH,
+    UPCOMING_EVENT_ATTRIBUTE_LIMIT,
 )
 from .coordinator import (
     ProSoccerDataCoordinator,
@@ -82,6 +84,7 @@ async def async_setup_entry(
                 ProSoccerDataLastMessageSensor,
                 ProSoccerDataMessagesSensor,
                 ProSoccerDataSelectedMessageSensor,
+                ProSoccerDataUpcomingEventsSensor,
             )
         )
 
@@ -567,6 +570,59 @@ class ProSoccerDataMessagesSensor(ProSoccerDataBaseSensor):
                 _message_summary(message)
                 for message in messages[:MESSAGE_ATTRIBUTE_LIMIT]
             ],
+        }
+
+
+class ProSoccerDataUpcomingEventsSensor(ProSoccerDataBaseSensor):
+    """Number of scheduled events still to come, with the details of each."""
+
+    _key = "upcoming_events"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"events"})
+
+    @property
+    def _events(self) -> list[dict[str, Any]]:
+        """Return the events that have not finished yet, soonest first."""
+        now = dt_util.now()
+        events = []
+
+        for event in self._section("upcoming", []):
+            start = as_local_datetime(event.get("start"))
+            if start is None:
+                continue
+            end = as_local_datetime(event.get("end"))
+            if (end or start) >= now:
+                events.append(event)
+
+        return events
+
+    @property
+    def native_value(self) -> int:
+        """Return how many events are still to come."""
+        return len(self._events)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the upcoming events in a compact form."""
+        return {
+            "events": [
+                {
+                    "uid": f"{event.get('type', 'event')}-{event.get('id')}",
+                    "type": event.get("type"),
+                    "title": event.get("full_title"),
+                    "start": event.get("start"),
+                    "end": event.get("end"),
+                    "team": event.get("team"),
+                    "opponent": event.get("opponent"),
+                    "home_away": event.get("home_away"),
+                    "competition": event.get("competition"),
+                    "location": event.get("location"),
+                    "meeting_hour": event.get("meeting_hour"),
+                    "meeting_location": event.get("meeting_location"),
+                    "attendance": event.get("attendance"),
+                }
+                for event in self._events[:UPCOMING_EVENT_ATTRIBUTE_LIMIT]
+            ]
         }
 
 

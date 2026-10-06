@@ -50,6 +50,8 @@ SEASON_MATCH_ATTRIBUTE_LIMIT = 40
 SEASON_START_MONTH = 7
 # Cap on an opened message's body, so one long mail cannot bloat the state.
 MESSAGE_BODY_LIMIT = 8000
+# Upcoming events listed on the Upcoming Events sensor (about a month).
+UPCOMING_EVENT_ATTRIBUTE_LIMIT = 40
 
 ATTR_TEAM = "team"
 ATTR_OPPONENT = "opponent"

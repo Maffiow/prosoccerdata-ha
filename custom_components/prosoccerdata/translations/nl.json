@@ -104,6 +104,9 @@
       },
       "selected_message": {
         "name": "Geselecteerd bericht"
+      },
+      "upcoming_events": {
+        "name": "Komende activiteiten"
       }
     },
     "calendar": {

@@ -45,6 +45,9 @@
       },
       "selected_message": {
         "default": "mdi:email-open"
+      },
+      "upcoming_events": {
+        "default": "mdi:calendar-clock"
       }
     },
     "calendar": {

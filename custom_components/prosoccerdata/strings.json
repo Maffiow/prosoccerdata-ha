@@ -104,6 +104,9 @@
       },
       "selected_message": {
         "name": "Selected Message"
+      },
+      "upcoming_events": {
+        "name": "Upcoming Events"
       }
     },
     "calendar": {

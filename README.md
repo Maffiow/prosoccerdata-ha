@@ -434,6 +434,26 @@ Each message in a list attribute contains:
 | receiver_count   | Number of receivers   |
 
 ---
+## 🗓️ Upcoming Events
+
+**Entity**
+
+```text
+sensor.<player>_upcoming_events
+```
+
+| Property | Value                                                       |
+| -------- | ----------------------------------------------------------- |
+| State    | Number of scheduled events that have not finished yet       |
+| Icon     | mdi:calendar-clock                                          |
+| events   | Up to 40 events, soonest first (kept out of the recorder)   |
+
+Each event carries `uid`, `type` (`game`, `training` or `other`), `title`,
+`start`, `end`, `team`, `opponent`, `home_away`, `competition`, `location`,
+`meeting_hour`, `meeting_location` and `attendance`, so a dashboard can show
+the full details of an event without going through the calendar.
+
+---
 ## 📖 Selected Message
 
 **Entity**
