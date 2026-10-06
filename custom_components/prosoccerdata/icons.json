@@ -42,12 +42,23 @@
       },
       "messages": {
         "default": "mdi:email-multiple-outline"
+      },
+      "selected_message": {
+        "default": "mdi:email-open"
       }
     },
     "calendar": {
       "schedule": {
         "default": "mdi:calendar-clock"
       }
+    }
+  },
+  "services": {
+    "open_message": {
+      "service": "mdi:email-open"
+    },
+    "mark_message_read": {
+      "service": "mdi:email-check"
     }
   }
 }

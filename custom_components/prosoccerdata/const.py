@@ -25,7 +25,7 @@ DEFAULT_LANGUAGE = "nl"
 DEFAULT_TIME_ZONE = "Europe/Brussels"
 
 # How many matches/messages the API is asked for per refresh.
-MATCH_FETCH_COUNT = 20
+MATCH_FETCH_COUNT = 40
 PAYMENT_FETCH_COUNT = 10
 MESSAGE_FETCH_COUNT = 30
 
@@ -43,6 +43,13 @@ EVENT_TYPE_OTHER = "other"
 # written to the recorder on each update, so these stay deliberately small.
 MATCH_ATTRIBUTE_LIMIT = 10
 MESSAGE_ATTRIBUTE_LIMIT = 15
+# Competition matches of the current season (home and return legs). Kept out
+# of the recorder, like the other list attributes on the last-match sensor.
+SEASON_MATCH_ATTRIBUTE_LIMIT = 40
+# Belgian youth seasons start in July.
+SEASON_START_MONTH = 7
+# Cap on an opened message's body, so one long mail cannot bloat the state.
+MESSAGE_BODY_LIMIT = 8000
 
 ATTR_TEAM = "team"
 ATTR_OPPONENT = "opponent"
@@ -52,6 +59,7 @@ ATTR_COMPETITION = "competition"
 ATTR_LOCATION = "location"
 ATTR_MEETING_HOUR = "meeting_hour"
 ATTR_RECENT_MATCHES = "recent_matches"
+ATTR_SEASON_MATCHES = "season_matches"
 ATTR_MATCH_START = "match_start"
 ATTR_MATCH_END = "match_end"
 ATTR_ATTENDANCE = "attendance_state"

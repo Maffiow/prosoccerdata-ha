@@ -1,0 +1,34 @@
+open_message:
+  fields:
+    message_id:
+      required: true
+      example: 1349
+      selector:
+        number:
+          min: 1
+          mode: box
+    member_id:
+      example: 7486
+      selector:
+        number:
+          min: 1
+          mode: box
+
+mark_message_read:
+  fields:
+    message_id:
+      example: 1349
+      selector:
+        number:
+          min: 1
+          mode: box
+    member_id:
+      example: 7486
+      selector:
+        number:
+          min: 1
+          mode: box
+    read:
+      default: true
+      selector:
+        boolean:

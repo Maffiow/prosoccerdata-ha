@@ -101,11 +101,48 @@
       },
       "messages": {
         "name": "Berichten"
+      },
+      "selected_message": {
+        "name": "Geselecteerd bericht"
       }
     },
     "calendar": {
       "schedule": {
         "name": "Planning"
+      }
+    }
+  },
+  "services": {
+    "open_message": {
+      "name": "Bericht openen",
+      "description": "Haalt de volledige tekst van een bericht op en toont die op de sensor Geselecteerd bericht.",
+      "fields": {
+        "message_id": {
+          "name": "Bericht-ID",
+          "description": "ID van het bericht, zoals in de attributen van de berichtensensor."
+        },
+        "member_id": {
+          "name": "Lid-ID",
+          "description": "Speler van wie de mailbox is. Alleen nodig als er meer dan één speler is ingesteld."
+        }
+      }
+    },
+    "mark_message_read": {
+      "name": "Bericht als gelezen markeren",
+      "description": "Markeert een bericht als gelezen, of opnieuw als ongelezen.",
+      "fields": {
+        "message_id": {
+          "name": "Bericht-ID",
+          "description": "ID van het bericht. Standaard het laatst geopende bericht."
+        },
+        "member_id": {
+          "name": "Lid-ID",
+          "description": "Speler van wie de mailbox is. Alleen nodig als er meer dan één speler is ingesteld."
+        },
+        "read": {
+          "name": "Gelezen",
+          "description": "Zet uit om het bericht weer als ongelezen te markeren."
+        }
       }
     }
   }

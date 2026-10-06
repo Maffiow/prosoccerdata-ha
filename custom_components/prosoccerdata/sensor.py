@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime
+from html import unescape
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -29,16 +31,22 @@ from .const import (
     ATTR_OPPONENT,
     ATTR_RECENT_MATCHES,
     ATTR_SCORE,
+    ATTR_SEASON_MATCHES,
     ATTR_TEAM,
     ATTR_TITLE,
     DOMAIN,
     MATCH_ATTRIBUTE_LIMIT,
     MESSAGE_ATTRIBUTE_LIMIT,
+    MESSAGE_BODY_LIMIT,
+    SEASON_MATCH_ATTRIBUTE_LIMIT,
+    SEASON_START_MONTH,
 )
 from .coordinator import (
     ProSoccerDataCoordinator,
     as_local_datetime,
+    message_is_unread,
     player_name,
+    unread_messages,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,6 +81,7 @@ async def async_setup_entry(
                 ProSoccerDataUnreadMessageCountSensor,
                 ProSoccerDataLastMessageSensor,
                 ProSoccerDataMessagesSensor,
+                ProSoccerDataSelectedMessageSensor,
             )
         )
 
@@ -204,7 +213,7 @@ class ProSoccerDataLastMatchSensor(ProSoccerDataBaseSensor):
 
     _key = "last_match"
     _attr_device_class = SensorDeviceClass.DATE
-    _unrecorded_attributes = frozenset({ATTR_RECENT_MATCHES})
+    _unrecorded_attributes = frozenset({ATTR_RECENT_MATCHES, ATTR_SEASON_MATCHES})
 
     @property
     def native_value(self) -> date | None:
@@ -240,15 +249,11 @@ class ProSoccerDataLastMatchSensor(ProSoccerDataBaseSensor):
             ATTR_ATTENDANCE: last.get("attendance"),
             "full_title": last.get("full_title"),
             ATTR_RECENT_MATCHES: [
-                {
-                    "date": match.get("date"),
-                    "opponent": match.get("opponent"),
-                    "score": match.get("score"),
-                    "home_away": match.get("home_away"),
-                    "competition": match.get("competition"),
-                    "cancelled": match.get("cancelled"),
-                }
-                for match in recent[:MATCH_ATTRIBUTE_LIMIT]
+                _match_summary(match) for match in recent[:MATCH_ATTRIBUTE_LIMIT]
+            ],
+            ATTR_SEASON_MATCHES: [
+                _match_summary(match)
+                for match in _season_matches(recent)[:SEASON_MATCH_ATTRIBUTE_LIMIT]
             ],
         }
 
@@ -480,7 +485,7 @@ class ProSoccerDataMessageCountSensor(ProSoccerDataBaseSensor):
 
 
 class ProSoccerDataUnreadMessageCountSensor(ProSoccerDataBaseSensor):
-    """Number of unread messages in the fetched inbox page."""
+    """Number of unread messages in the mailbox."""
 
     _key = "unread_message_count"
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -488,15 +493,11 @@ class ProSoccerDataUnreadMessageCountSensor(ProSoccerDataBaseSensor):
 
     @property
     def _unread(self) -> list[dict[str, Any]]:
-        return [
-            message
-            for message in self._section("messages", [])
-            if _message_is_unread(message)
-        ]
+        return unread_messages(self._player_data or {})
 
     @property
     def native_value(self) -> int:
-        """Return how many fetched messages are unread."""
+        """Return how many messages are unread."""
         return len(self._unread)
 
     @property
@@ -569,6 +570,80 @@ class ProSoccerDataMessagesSensor(ProSoccerDataBaseSensor):
         }
 
 
+class ProSoccerDataSelectedMessageSensor(ProSoccerDataBaseSensor):
+    """The message last opened through the open_message action, with its body."""
+
+    _key = "selected_message"
+    _unrecorded_attributes = frozenset({"body_html", "body_text", "attachments"})
+
+    @property
+    def _message(self) -> dict[str, Any]:
+        return self.coordinator.selected_messages.get(
+            str(self._player["platformMemberId"]), {}
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the subject of the opened message."""
+        return self._message.get("subject")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the opened message, body included."""
+        message = self._message
+
+        if not message:
+            return {}
+
+        body_html = message.get("message") or ""
+
+        return {
+            "id": message.get("id"),
+            "member_id": self._player["platformMemberId"],
+            "subject": message.get("subject"),
+            "sender": _sender_name(message),
+            "sender_function": (message.get("sender") or {}).get("functionTitle"),
+            "date": message.get("date"),
+            "unread": message.get("unread", False),
+            "body_html": body_html[:MESSAGE_BODY_LIMIT],
+            "body_text": _html_to_text(body_html)[:MESSAGE_BODY_LIMIT],
+            "attachments": [
+                {
+                    "file_name": attachment.get("fileName"),
+                    "url": attachment.get("attachmentUrl"),
+                }
+                for attachment in message.get("attachments") or []
+            ],
+        }
+
+
+def _match_summary(match: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "date": match.get("date"),
+        "opponent": match.get("opponent"),
+        "score": match.get("score"),
+        "home_away": match.get("home_away"),
+        "competition": match.get("competition"),
+        "cancelled": match.get("cancelled"),
+    }
+
+
+def _season_matches(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return the matches played since the current season started."""
+    today = date.today()
+    year = today.year if today.month >= SEASON_START_MONTH else today.year - 1
+    start = date(year, SEASON_START_MONTH, 1).isoformat()
+    return [match for match in matches if (match.get("date") or "") >= start]
+
+
+def _html_to_text(html: str) -> str:
+    """Flatten a message's HTML body into readable plain text."""
+    text = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</li>", "\n", html)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = unescape(text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 def _as_float(value: Any) -> float | None:
     """Return `value` as a float, or None when it is not numeric."""
     try:
@@ -587,12 +662,6 @@ def _sender_name(message: dict[str, Any]) -> str | None:
     return name or None
 
 
-def _message_is_unread(message: dict[str, Any]) -> bool:
-    return any(
-        receiver.get("read") is False for receiver in message.get("receivers") or []
-    )
-
-
 def _message_summary(message: dict[str, Any], *, full: bool = False) -> dict[str, Any]:
     """Summarise a message.
 
@@ -609,7 +678,7 @@ def _message_summary(message: dict[str, Any], *, full: bool = False) -> dict[str
         "sender": _sender_name(message),
         "date": message.get("date"),
         "first_sentence": message.get("firstSentence"),
-        "unread": _message_is_unread(message),
+        "unread": message_is_unread(message),
         "attachment_count": len(attachments),
         "receiver_count": len(receivers),
     }

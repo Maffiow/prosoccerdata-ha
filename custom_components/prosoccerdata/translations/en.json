@@ -101,11 +101,48 @@
       },
       "messages": {
         "name": "Messages"
+      },
+      "selected_message": {
+        "name": "Selected Message"
       }
     },
     "calendar": {
       "schedule": {
         "name": "Schedule"
+      }
+    }
+  },
+  "services": {
+    "open_message": {
+      "name": "Open message",
+      "description": "Fetches the full text of a mailbox message and shows it on the Selected message sensor.",
+      "fields": {
+        "message_id": {
+          "name": "Message ID",
+          "description": "ID of the message, as listed in the messages sensor attributes."
+        },
+        "member_id": {
+          "name": "Member ID",
+          "description": "Player the mailbox belongs to. Only needed when more than one player is configured."
+        }
+      }
+    },
+    "mark_message_read": {
+      "name": "Mark message as read",
+      "description": "Marks a mailbox message as read, or as unread again.",
+      "fields": {
+        "message_id": {
+          "name": "Message ID",
+          "description": "ID of the message. Defaults to the message last opened with Open message."
+        },
+        "member_id": {
+          "name": "Member ID",
+          "description": "Player the mailbox belongs to. Only needed when more than one player is configured."
+        },
+        "read": {
+          "name": "Read",
+          "description": "Turn off to mark the message as unread again."
+        }
       }
     }
   }

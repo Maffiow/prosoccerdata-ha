@@ -442,6 +442,52 @@ class ProSoccerDataAPI:
         )
         return self._as_dict(data)
 
+    async def get_unread_messages(
+        self, player: dict[str, Any], count: int = MESSAGE_FETCH_COUNT
+    ) -> list[dict[str, Any]]:
+        """Return every unread message, newest first, wherever it sits in the inbox."""
+        plat_url = player.get("platformURL", "").rstrip("/")
+        data = await self._platform_request(
+            player,
+            f"/mailbox/unread?size={count}&page=0",
+            extra_headers={
+                "Content-Type": "text/plain",
+                "Referer": f"{plat_url}/mail?page=list",
+            },
+        )
+        return self._as_list(data)
+
+    async def get_message_detail(
+        self, player: dict[str, Any], message_id: int
+    ) -> dict[str, Any]:
+        """Return one message including its full HTML body."""
+        plat_url = player.get("platformURL", "").rstrip("/")
+        data = await self._platform_request(
+            player,
+            f"/mailbox/{int(message_id)}/detail?includeAllReceivers=false",
+            extra_headers={
+                "Content-Type": "text/plain",
+                "Referer": f"{plat_url}/mail?page=detail&id={int(message_id)}",
+            },
+        )
+        return self._as_dict(self._as_dict(data).get("mail"))
+
+    async def set_messages_read(
+        self, player: dict[str, Any], message_ids: list[int], read: bool = True
+    ) -> None:
+        """Mark messages as read (or unread again) in the player's mailbox."""
+        plat_url = player.get("platformURL", "").rstrip("/")
+        ids = ",".join(str(int(message_id)) for message_id in message_ids)
+        await self._platform_request(
+            player,
+            f"/mailbox/read/{'true' if read else 'false'}?mailIds={ids}",
+            method="POST",
+            extra_headers={
+                "Content-Type": "application/json",
+                "Referer": f"{plat_url}/mail?page=list",
+            },
+        )
+
     # ------------------------------------------------------------------
     # Parsing
     # ------------------------------------------------------------------

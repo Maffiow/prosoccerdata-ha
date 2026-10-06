@@ -206,6 +206,7 @@ sensor.<player>_last_match
 | attendance_state | Attendance status        |
 | full_title       | Full match title         |
 | recent_matches   | List of last 10 matches  |
+| season_matches   | Every match since 1 July, including return legs |
 
 ---
 
@@ -362,7 +363,7 @@ sensor.<player>_unread_message_count
 
 | Property       | Value                                            |
 | -------------- | ------------------------------------------------ |
-| State          | Number of unread inbox messages                  |
+| State          | Number of unread mailbox messages, however old   |
 | Icon           | mdi:email-alert                                  |
 | latest_subject | Subject of the newest unread message             |
 | messages       | List of unread messages (max 15)                 |
@@ -433,6 +434,34 @@ Each message in a list attribute contains:
 | receiver_count   | Number of receivers   |
 
 ---
+## 📖 Selected Message
+
+**Entity**
+
+```text
+sensor.<player>_selected_message
+```
+
+Shows the message last opened with the `prosoccerdata.open_message` action,
+so a dashboard can display its full text.
+
+| Property        | Value                                 |
+| --------------- | ------------------------------------- |
+| State           | Subject of the opened message         |
+| Icon            | mdi:email-open                        |
+| id              | Message ID                            |
+| member_id       | Player the mailbox belongs to         |
+| sender          | Sender name                           |
+| sender_function | Sender's function at the club         |
+| date            | Message date                          |
+| unread          | Whether the message is still unread   |
+| body_html       | Full message body as HTML             |
+| body_text       | Full message body as plain text       |
+| attachments     | List of attachments                   |
+
+The body and attachment attributes are kept out of the recorder.
+
+---
 ## 🔐 Account
 
 **Entity**
@@ -465,6 +494,24 @@ sensor.<player>_account
 ---
 
 
+# 🎬 Actions
+
+| Action                            | Fields                                   | Effect                                                                                   |
+| --------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `prosoccerdata.open_message`      | `message_id`, `member_id` (optional)     | Fetches the full message and shows it on the Selected Message sensor; also returns it as a response |
+| `prosoccerdata.mark_message_read` | `message_id`, `member_id`, `read` (all optional) | Marks a message read (or unread with `read: false`); defaults to the opened message |
+
+`member_id` is only needed when more than one player is configured.
+
+```yaml
+action: prosoccerdata.mark_message_read
+data:
+  message_id: 1349
+```
+
+---
+
+
 # 🔌 API Data Sources
 
 This integration retrieves data from:
@@ -475,7 +522,9 @@ This integration retrieves data from:
 * Team Information
 * Member Profile Information
 * Account Information
-* Mailbox Inbox Messages (unread state is derived from these)
+* Mailbox Inbox Messages
+* Unread Mailbox Messages
+* Message Detail (on demand, through the open_message action)
 
 ---
 

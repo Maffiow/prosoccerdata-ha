@@ -89,6 +89,42 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.api = api
         self.players = players
+        # The message each player last opened through the open_message action,
+        # keyed like the player data. Lives outside `data` so a refresh does
+        # not wipe what the dashboard is showing.
+        self.selected_messages: dict[str, dict[str, Any]] = {}
+
+    async def async_open_message(
+        self, player: dict[str, Any], message_id: int
+    ) -> dict[str, Any]:
+        """Fetch a message's full body and expose it as the selected message."""
+        mail = await self.api.get_message_detail(player, message_id)
+        if not mail:
+            raise ProSoccerDataError(f"Message {message_id} was not found")
+
+        key = str(player["platformMemberId"])
+        unread_ids = {
+            message.get("id")
+            for message in unread_messages((self.data or {}).get(key) or {})
+        }
+        mail["unread"] = mail.get("id") in unread_ids
+
+        self.selected_messages[key] = mail
+        self.async_update_listeners()
+        return mail
+
+    async def async_set_message_read(
+        self, player: dict[str, Any], message_id: int, read: bool
+    ) -> None:
+        """Change a message's read flag and reflect it without waiting for a poll."""
+        await self.api.set_messages_read(player, [message_id], read)
+
+        key = str(player["platformMemberId"])
+        selected = self.selected_messages.get(key)
+        if selected and selected.get("id") == message_id:
+            selected["unread"] = not read
+
+        await self.async_request_refresh()
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Refresh every player, keeping the last good data for those that fail."""
@@ -134,6 +170,7 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         messages_data = await self.api.get_messages(player)
         messages = messages_data.get("content", [])
+        unread_messages = await self._fetch_unread(player)
 
         upcoming = await self._fetch_upcoming(player)
 
@@ -157,10 +194,30 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "messages_data": messages_data,
             "messages": messages,
             "last_message": messages[0] if messages else None,
+            "unread_messages": unread_messages,
             "upcoming": upcoming,
             "next_match": _first_of_type(upcoming, EVENT_TYPE_GAME),
             "next_training": _first_of_type(upcoming, EVENT_TYPE_TRAINING),
         }
+
+    async def _fetch_unread(
+        self, player: dict[str, Any]
+    ) -> list[dict[str, Any]] | None:
+        """Return the unread messages, or None when the endpoint is unavailable.
+
+        The inbox page only covers the newest messages, so an old unread one
+        would be missed there; this endpoint lists them all. A failure falls
+        back to deriving unread messages from the inbox page.
+        """
+        try:
+            return await self.api.get_unread_messages(player)
+        except AuthError:
+            raise
+        except (ProSoccerDataError, AttributeError, KeyError, TypeError, ValueError) as err:
+            _LOGGER.debug(
+                "Could not fetch unread messages for %s: %s", player_name(player), err
+            )
+            return None
 
     async def _fetch_upcoming(self, player: dict[str, Any]) -> list[dict[str, Any]]:
         """Return the player's schedule for the rolling window, soonest first.
@@ -190,6 +247,29 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             (event for event in events if not event.get("cancelled")),
             key=lambda event: as_local_datetime(event.get("start")) or dt_util.utcnow(),
         )
+
+
+def message_is_unread(message: dict[str, Any]) -> bool:
+    """Return whether the account has not read this message yet."""
+    return any(
+        receiver.get("read") is False for receiver in message.get("receivers") or []
+    )
+
+
+def unread_messages(player_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return a player's unread messages, newest first.
+
+    Prefers the dedicated unread listing; when that could not be fetched, falls
+    back to the unread messages on the fetched inbox page.
+    """
+    unread = player_data.get("unread_messages")
+    if unread is not None:
+        return unread
+    return [
+        message
+        for message in player_data.get("messages") or []
+        if message_is_unread(message)
+    ]
 
 
 def _first_of_type(
