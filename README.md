@@ -206,7 +206,7 @@ sensor.<player>_last_match
 | attendance_state | Attendance status        |
 | full_title       | Full match title         |
 | recent_matches   | List of last 10 matches  |
-| season_matches   | Every match since 1 July, including return legs |
+| season_matches   | Every match since 1 July, including return legs, with the player's attendance |
 
 ---
 

@@ -681,6 +681,7 @@ def _match_summary(match: dict[str, Any]) -> dict[str, Any]:
         "home_away": match.get("home_away"),
         "competition": match.get("competition"),
         "cancelled": match.get("cancelled"),
+        "attendance": match.get("attendance"),
     }
 
 
