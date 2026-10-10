@@ -171,6 +171,7 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         messages_data = await self.api.get_messages(player)
         messages = messages_data.get("content", [])
         unread_messages = await self._fetch_unread(player)
+        team_members = await self._fetch_team_members(player, teams)
 
         upcoming = await self._fetch_upcoming(player)
 
@@ -195,10 +196,31 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "messages": messages,
             "last_message": messages[0] if messages else None,
             "unread_messages": unread_messages,
+            "team_members": team_members,
             "upcoming": upcoming,
             "next_match": _first_of_type(upcoming, EVENT_TYPE_GAME),
             "next_training": _first_of_type(upcoming, EVENT_TYPE_TRAINING),
         }
+
+    async def _fetch_team_members(
+        self, player: dict[str, Any], teams: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Return the player's teammates; an empty list when unavailable."""
+        team_id = (teams.get("member") or {}).get("teamId") or (
+            (teams.get("user") or {}).get("member") or {}
+        ).get("team")
+        if not team_id:
+            return []
+
+        try:
+            return await self.api.get_team_members(player, team_id)
+        except AuthError:
+            raise
+        except (ProSoccerDataError, AttributeError, KeyError, TypeError, ValueError) as err:
+            _LOGGER.debug(
+                "Could not fetch the team members for %s: %s", player_name(player), err
+            )
+            return []
 
     async def _fetch_unread(
         self, player: dict[str, Any]

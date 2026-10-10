@@ -48,6 +48,9 @@
       },
       "upcoming_events": {
         "default": "mdi:calendar-clock"
+      },
+      "team_members": {
+        "default": "mdi:account-group"
       }
     },
     "calendar": {

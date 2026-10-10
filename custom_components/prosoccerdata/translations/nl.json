@@ -107,6 +107,9 @@
       },
       "upcoming_events": {
         "name": "Komende activiteiten"
+      },
+      "team_members": {
+        "name": "Ploeggenoten"
       }
     },
     "calendar": {

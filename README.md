@@ -454,6 +454,23 @@ Each event carries `uid`, `type` (`game`, `training` or `other`), `title`,
 the full details of an event without going through the calendar.
 
 ---
+## 👥 Team Members
+
+**Entity**
+
+```text
+sensor.<player>_team_members
+```
+
+| Property | Value                                                    |
+| -------- | -------------------------------------------------------- |
+| State    | Number of players in the player's team                   |
+| Icon     | mdi:account-group                                        |
+| players  | The squad: `name`, `keeper`, `shirt_number`, `position`  |
+
+Birth dates and contact details of teammates are deliberately left out.
+
+---
 ## 📖 Selected Message
 
 **Entity**

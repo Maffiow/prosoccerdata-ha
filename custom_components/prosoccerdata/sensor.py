@@ -85,6 +85,7 @@ async def async_setup_entry(
                 ProSoccerDataMessagesSensor,
                 ProSoccerDataSelectedMessageSensor,
                 ProSoccerDataUpcomingEventsSensor,
+                ProSoccerDataTeamMembersSensor,
             )
         )
 
@@ -622,6 +623,40 @@ class ProSoccerDataUpcomingEventsSensor(ProSoccerDataBaseSensor):
                     "attendance": event.get("attendance"),
                 }
                 for event in self._events[:UPCOMING_EVENT_ATTRIBUTE_LIMIT]
+            ]
+        }
+
+
+class ProSoccerDataTeamMembersSensor(ProSoccerDataBaseSensor):
+    """Number of players in the player's team, with the squad list."""
+
+    _key = "team_members"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _unrecorded_attributes = frozenset({"players"})
+
+    @property
+    def _members(self) -> list[dict[str, Any]]:
+        return self._section("team_members", [])
+
+    @property
+    def native_value(self) -> int:
+        """Return how many players the team has."""
+        return len(self._members)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the squad; deliberately without birth dates or contact data."""
+        return {
+            "players": [
+                {
+                    "name": (
+                        f"{member.get('firstName') or ''} {member.get('lastName') or ''}"
+                    ).strip(),
+                    "keeper": bool(member.get("keeper")),
+                    "shirt_number": member.get("shirtNumber") or None,
+                    "position": member.get("bestPosition") or None,
+                }
+                for member in self._members
             ]
         }
 

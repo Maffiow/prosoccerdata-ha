@@ -442,6 +442,13 @@ class ProSoccerDataAPI:
         )
         return self._as_dict(data)
 
+    async def get_team_members(
+        self, player: dict[str, Any], team_id: str | int
+    ) -> list[dict[str, Any]]:
+        """Return the players of a team the account can see."""
+        data = await self._platform_request(player, f"/teams/{team_id}/members")
+        return self._as_list(data)
+
     async def get_unread_messages(
         self, player: dict[str, Any], count: int = MESSAGE_FETCH_COUNT
     ) -> list[dict[str, Any]]:

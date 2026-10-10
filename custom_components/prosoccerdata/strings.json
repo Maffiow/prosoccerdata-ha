@@ -107,6 +107,9 @@
       },
       "upcoming_events": {
         "name": "Upcoming Events"
+      },
+      "team_members": {
+        "name": "Team Members"
       }
     },
     "calendar": {
