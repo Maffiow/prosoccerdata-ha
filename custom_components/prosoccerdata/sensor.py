@@ -36,12 +36,14 @@ from .const import (
     ATTR_TEAM,
     ATTR_TITLE,
     DOMAIN,
+    EVENT_TYPE_GAME,
     MATCH_ATTRIBUTE_LIMIT,
     MESSAGE_ATTRIBUTE_LIMIT,
     MESSAGE_BODY_LIMIT,
     SEASON_MATCH_ATTRIBUTE_LIMIT,
     SEASON_START_MONTH,
     UPCOMING_EVENT_ATTRIBUTE_LIMIT,
+    UPCOMING_GAME_ATTRIBUTE_LIMIT,
 )
 from .coordinator import (
     ProSoccerDataCoordinator,
@@ -579,7 +581,7 @@ class ProSoccerDataUpcomingEventsSensor(ProSoccerDataBaseSensor):
 
     _key = "upcoming_events"
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _unrecorded_attributes = frozenset({"events"})
+    _unrecorded_attributes = frozenset({"events", "games"})
 
     @property
     def _events(self) -> list[dict[str, Any]]:
@@ -604,26 +606,26 @@ class ProSoccerDataUpcomingEventsSensor(ProSoccerDataBaseSensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the upcoming events in a compact form."""
+        """Return the upcoming events, with the matches also listed on their own.
+
+        `events` is a short list of whatever comes next, trainings included.
+        `games` holds matches only and so reaches much further ahead for the
+        same payload — far enough to cover return legs that are months away.
+        """
+        events = self._events
+        games = [
+            event for event in events if event.get("type") == EVENT_TYPE_GAME
+        ]
+
         return {
             "events": [
-                {
-                    "uid": f"{event.get('type', 'event')}-{event.get('id')}",
-                    "type": event.get("type"),
-                    "title": event.get("full_title"),
-                    "start": event.get("start"),
-                    "end": event.get("end"),
-                    "team": event.get("team"),
-                    "opponent": event.get("opponent"),
-                    "home_away": event.get("home_away"),
-                    "competition": event.get("competition"),
-                    "location": event.get("location"),
-                    "meeting_hour": event.get("meeting_hour"),
-                    "meeting_location": event.get("meeting_location"),
-                    "attendance": event.get("attendance"),
-                }
-                for event in self._events[:UPCOMING_EVENT_ATTRIBUTE_LIMIT]
-            ]
+                _event_summary(event)
+                for event in events[:UPCOMING_EVENT_ATTRIBUTE_LIMIT]
+            ],
+            "games": [
+                _event_summary(event)
+                for event in games[:UPCOMING_GAME_ATTRIBUTE_LIMIT]
+            ],
         }
 
 
@@ -717,6 +719,25 @@ def _match_summary(match: dict[str, Any]) -> dict[str, Any]:
         "competition": match.get("competition"),
         "cancelled": match.get("cancelled"),
         "attendance": match.get("attendance"),
+    }
+
+
+def _event_summary(event: dict[str, Any]) -> dict[str, Any]:
+    """Flatten a scheduled event for a state attribute."""
+    return {
+        "uid": f"{event.get('type', 'event')}-{event.get('id')}",
+        "type": event.get("type"),
+        "title": event.get("full_title"),
+        "start": event.get("start"),
+        "end": event.get("end"),
+        "team": event.get("team"),
+        "opponent": event.get("opponent"),
+        "home_away": event.get("home_away"),
+        "competition": event.get("competition"),
+        "location": event.get("location"),
+        "meeting_hour": event.get("meeting_hour"),
+        "meeting_location": event.get("meeting_location"),
+        "attendance": event.get("attendance"),
     }
 
 

@@ -32,7 +32,7 @@ MESSAGE_FETCH_COUNT = 30
 # Rolling window the coordinator keeps for the calendar and the next-event
 # sensors. The calendar panel asks for its own range on top of this.
 SCHEDULE_PAST_DAYS = 1
-SCHEDULE_FUTURE_DAYS = 30
+SCHEDULE_FUTURE_DAYS = 120
 
 # ProSoccerData event types, as used by its own web client.
 EVENT_TYPE_GAME = "game"
@@ -52,6 +52,9 @@ SEASON_START_MONTH = 7
 MESSAGE_BODY_LIMIT = 8000
 # Upcoming events listed on the Upcoming Events sensor (about a month).
 UPCOMING_EVENT_ATTRIBUTE_LIMIT = 40
+# Upcoming matches listed separately. There are far fewer of these than
+# trainings, so the list reaches the whole way to the end of the window.
+UPCOMING_GAME_ATTRIBUTE_LIMIT = 30
 
 ATTR_TEAM = "team"
 ATTR_OPPONENT = "opponent"
