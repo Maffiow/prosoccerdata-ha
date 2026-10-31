@@ -89,19 +89,25 @@ def event_id_from(value: str) -> int:
     return int(digits)
 
 
+def event_type_from(value: str) -> str:
+    """Read the event type out of a calendar uid such as `training-18161`."""
+    head = str(value).split("-", 1)[0].strip().lower()
+    return head if head in ("game", "training", "other") else "game"
+
+
 def presence_summary(item: dict) -> dict:
     """Pick the readable fields out of a presence record.
 
     ProSoccerData has not documented this response, so every field is looked
-    for in both the nested member record and the record itself.
+    for in the nested player and member records as well as the record itself.
     """
-    member = item.get("member") or item.get("platformMember") or {}
+    member = item.get("player") or item.get("member") or item.get("platformMember") or {}
     first = member.get("firstName") or item.get("firstName")
     last = member.get("lastName") or item.get("lastName")
     name = f"{first or ''} {last or ''}".strip()
 
     return {
-        "name": name or item.get("name"),
+        "name": name or member.get("fullName") or item.get("name"),
         "status": item.get("attendanceStatus") or item.get("status"),
         "shirt_number": member.get("shirtNumber") or item.get("number"),
         "keeper": member.get("keeper"),
@@ -190,8 +196,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         event_id = event_id_from(call.data[ATTR_EVENT])
 
         try:
-            items = await coordinator.api.get_event_presences(
-                player, event_id, status=call.data[ATTR_STATUS]
+            path, items = await coordinator.api.get_event_presences(
+                player,
+                event_id,
+                event_type=event_type_from(call.data[ATTR_EVENT]),
+                status=call.data[ATTR_STATUS],
             )
         except AuthError as err:
             raise HomeAssistantError(
@@ -206,6 +215,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         return {
             "event_id": event_id,
+            "path": path,
             "count": len(items),
             # The shape of a record is undocumented; report the keys so an
             # unexpected response can be read without guessing.

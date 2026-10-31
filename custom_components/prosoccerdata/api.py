@@ -433,27 +433,47 @@ class ProSoccerDataAPI:
         player: dict[str, Any],
         event_id: int,
         *,
+        event_type: str = "game",
         status: str = "ALL",
         member_status: str = "player",
         count: int = PRESENCE_FETCH_COUNT,
-    ) -> list[dict[str, Any]]:
-        """Return who is down to attend a scheduled event.
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """Return the path that answered and who is down to attend an event.
 
-        This is the list the club's own attendance screen reads. An account
-        without the rights for it is refused rather than given a short list,
-        so AuthError here means "not allowed", not "nobody is coming".
+        ProSoccerData's own client reaches this list through two different
+        routes depending on the screen, and which one a given event accepts is
+        not apparent from the outside, so both are tried. A refusal (AuthError)
+        is a rights problem and stops here; a rejected request is not, and
+        moves on to the other route.
         """
         plat_url = player.get("platformURL", "").rstrip("/")
-        data = await self._platform_request(
-            player,
+        paging = f"size={count}&page=0&sort=fullName,desc"
+        headers = {
+            "Content-Type": "text/plain",
+            "Referer": f"{plat_url}/planning/calendar",
+        }
+        routes = [
             f"/agenda/{event_id}/presences/{status}"
-            f"?memberStatus={member_status}&size={count}&page=0",
-            extra_headers={
-                "Content-Type": "text/plain",
-                "Referer": f"{plat_url}/planning/calendar",
-            },
-        )
-        return self._as_list(data)
+            f"?memberStatus={member_status}&{paging}",
+            f"/schedule/{event_type}/{event_id}/presences/{status}?q=&{paging}",
+        ]
+
+        last: ProSoccerDataError | None = None
+        for path in routes:
+            try:
+                data = await self._platform_request(
+                    player, path, extra_headers=headers
+                )
+            except AuthError:
+                raise
+            except ProSoccerDataError as err:
+                _LOGGER.debug("Attendance route %s rejected: %s", path, err)
+                last = err
+                continue
+
+            return path, self._as_list(data)
+
+        raise ProSoccerDataError(f"No attendance route answered. Last: {last}")
 
     async def get_messages(
         self, player: dict[str, Any], count: int = MESSAGE_FETCH_COUNT
