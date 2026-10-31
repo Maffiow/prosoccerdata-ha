@@ -32,3 +32,25 @@ mark_message_read:
       default: true
       selector:
         boolean:
+
+get_attendance:
+  fields:
+    event:
+      required: true
+      example: game-6963
+      selector:
+        text:
+    member_id:
+      example: 7486
+      selector:
+        number:
+          min: 1
+          mode: box
+    status:
+      default: ALL
+      selector:
+        select:
+          options:
+            - ALL
+            - PRESENT
+            - ABSENT

@@ -24,6 +24,7 @@ from .const import (
     MESSAGE_FETCH_COUNT,
     PAYMENT_FETCH_COUNT,
     POSSIBLE_USERS_URL,
+    PRESENCE_FETCH_COUNT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -424,6 +425,33 @@ class ProSoccerDataAPI:
             player,
             f"/schedule/dashboard?from={_fmt_schedule_time(start)}"
             f"&to={_fmt_schedule_time(end)}&memberId={member_id}",
+        )
+        return self._as_list(data)
+
+    async def get_event_presences(
+        self,
+        player: dict[str, Any],
+        event_id: int,
+        *,
+        status: str = "ALL",
+        member_status: str = "player",
+        count: int = PRESENCE_FETCH_COUNT,
+    ) -> list[dict[str, Any]]:
+        """Return who is down to attend a scheduled event.
+
+        This is the list the club's own attendance screen reads. An account
+        without the rights for it is refused rather than given a short list,
+        so AuthError here means "not allowed", not "nobody is coming".
+        """
+        plat_url = player.get("platformURL", "").rstrip("/")
+        data = await self._platform_request(
+            player,
+            f"/agenda/{event_id}/presences/{status}"
+            f"?memberStatus={member_status}&size={count}&page=0",
+            extra_headers={
+                "Content-Type": "text/plain",
+                "Referer": f"{plat_url}/planning/calendar",
+            },
         )
         return self._as_list(data)
 

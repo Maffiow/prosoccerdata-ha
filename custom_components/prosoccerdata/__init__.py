@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import timedelta
 
 import aiohttp
@@ -46,10 +47,15 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 SERVICE_OPEN_MESSAGE = "open_message"
 SERVICE_MARK_MESSAGE_READ = "mark_message_read"
+SERVICE_GET_ATTENDANCE = "get_attendance"
 
 ATTR_MESSAGE_ID = "message_id"
 ATTR_MEMBER_ID = "member_id"
 ATTR_READ = "read"
+ATTR_EVENT = "event"
+ATTR_STATUS = "status"
+
+ATTENDANCE_STATUSES = ["ALL", "PRESENT", "ABSENT"]
 
 OPEN_MESSAGE_SCHEMA = vol.Schema(
     {
@@ -64,6 +70,42 @@ MARK_MESSAGE_READ_SCHEMA = vol.Schema(
         vol.Optional(ATTR_READ, default=True): cv.boolean,
     }
 )
+GET_ATTENDANCE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_EVENT): cv.string,
+        vol.Optional(ATTR_MEMBER_ID): vol.Coerce(int),
+        vol.Optional(ATTR_STATUS, default="ALL"): vol.In(ATTENDANCE_STATUSES),
+    }
+)
+
+
+def event_id_from(value: str) -> int:
+    """Accept either a calendar uid such as `game-6963` or a bare event id."""
+    digits = re.sub(r"\D", "", str(value))
+
+    if not digits:
+        raise ServiceValidationError(f"{value!r} holds no ProSoccerData event id")
+
+    return int(digits)
+
+
+def presence_summary(item: dict) -> dict:
+    """Pick the readable fields out of a presence record.
+
+    ProSoccerData has not documented this response, so every field is looked
+    for in both the nested member record and the record itself.
+    """
+    member = item.get("member") or item.get("platformMember") or {}
+    first = member.get("firstName") or item.get("firstName")
+    last = member.get("lastName") or item.get("lastName")
+    name = f"{first or ''} {last or ''}".strip()
+
+    return {
+        "name": name or item.get("name"),
+        "status": item.get("attendanceStatus") or item.get("status"),
+        "shirt_number": member.get("shirtNumber") or item.get("number"),
+        "keeper": member.get("keeper"),
+    }
 
 
 def build_api(hass: HomeAssistant, email: str, password: str) -> ProSoccerDataAPI:
@@ -143,6 +185,41 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 f"Could not update the message's read status: {err}"
             ) from err
 
+    async def get_attendance(call: ServiceCall) -> ServiceResponse:
+        coordinator, player = _resolve(call)
+        event_id = event_id_from(call.data[ATTR_EVENT])
+
+        try:
+            items = await coordinator.api.get_event_presences(
+                player, event_id, status=call.data[ATTR_STATUS]
+            )
+        except AuthError as err:
+            raise HomeAssistantError(
+                "ProSoccerData will not let this account read attendance lists"
+                f" ({err}). The club's staff screen is the only place that"
+                " shows them."
+            ) from err
+        except ProSoccerDataError as err:
+            raise HomeAssistantError(
+                f"Could not read the attendance list: {err}"
+            ) from err
+
+        return {
+            "event_id": event_id,
+            "count": len(items),
+            # The shape of a record is undocumented; report the keys so an
+            # unexpected response can be read without guessing.
+            "fields": sorted(items[0]) if items else [],
+            "players": [presence_summary(item) for item in items],
+        }
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_ATTENDANCE,
+        get_attendance,
+        schema=GET_ATTENDANCE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_OPEN_MESSAGE,

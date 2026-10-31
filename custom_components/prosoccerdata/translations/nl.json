@@ -150,6 +150,24 @@
           "description": "Zet uit om het bericht weer als ongelezen te markeren."
         }
       }
+    },
+    "get_attendance": {
+      "name": "Aanwezigheden ophalen",
+      "description": "Leest wie er verwacht wordt op een geplande activiteit. Vereist rechten die ProSoccerData een ouderaccount mogelijk niet geeft.",
+      "fields": {
+        "event": {
+          "name": "Activiteit",
+          "description": "Kalender-uid zoals game-6963, of enkel het activiteitsnummer."
+        },
+        "member_id": {
+          "name": "Lid-ID",
+          "description": "Speler van wiens club de activiteit is. Alleen nodig als er meer dan één speler is ingesteld."
+        },
+        "status": {
+          "name": "Status",
+          "description": "Beperk de lijst tot één aanwezigheidsstatus."
+        }
+      }
     }
   }
 }

@@ -150,6 +150,24 @@
           "description": "Turn off to mark the message as unread again."
         }
       }
+    },
+    "get_attendance": {
+      "name": "Get attendance",
+      "description": "Reads who is down to attend a scheduled event. Needs rights ProSoccerData may not grant a parent account.",
+      "fields": {
+        "event": {
+          "name": "Event",
+          "description": "Calendar uid such as game-6963, or the bare event id."
+        },
+        "member_id": {
+          "name": "Member ID",
+          "description": "Player whose club the event belongs to. Only needed when more than one player is configured."
+        },
+        "status": {
+          "name": "Status",
+          "description": "Limit the list to one attendance status."
+        }
+      }
     }
   }
 }

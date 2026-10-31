@@ -28,6 +28,7 @@ DEFAULT_TIME_ZONE = "Europe/Brussels"
 MATCH_FETCH_COUNT = 100
 PAYMENT_FETCH_COUNT = 10
 MESSAGE_FETCH_COUNT = 30
+PRESENCE_FETCH_COUNT = 50
 
 # Rolling window the coordinator keeps for the calendar and the next-event
 # sensors. The calendar panel asks for its own range on top of this.

@@ -65,6 +65,9 @@
     },
     "mark_message_read": {
       "service": "mdi:email-check"
+    },
+    "get_attendance": {
+      "service": "mdi:account-check"
     }
   }
 }
