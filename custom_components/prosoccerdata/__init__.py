@@ -109,6 +109,12 @@ def presence_summary(item: dict) -> dict:
     return {
         "name": name or member.get("fullName") or item.get("name"),
         "status": item.get("attendanceStatus") or item.get("status"),
+        # Attendance says who turned up; minutes says who actually played, and
+        # only the second is comparable with a match-sheet appearance count.
+        "present": item.get("present"),
+        "absent": item.get("absent"),
+        "minutes": item.get("minutes"),
+        "schedule_status": item.get("scheduleStatus"),
         "shirt_number": member.get("shirtNumber") or item.get("number"),
         "keeper": member.get("keeper"),
     }
