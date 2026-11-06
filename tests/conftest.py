@@ -149,7 +149,7 @@ def build_api_mock() -> AsyncMock:
     api.get_messages.return_value = {"content": [MESSAGE], "totalElements": 55}
     api.get_schedule.return_value = [RAW_EVENT, RAW_TRAINING]
     api.get_team_members.return_value = TEAM_MEMBERS
-    api.get_unread_messages.return_value = {"content": [MESSAGE]}
+    api.get_unread_messages.return_value = [MESSAGE]
     api.get_message_detail.return_value = {
         "id": 11,
         "subject": "Training verplaatst",

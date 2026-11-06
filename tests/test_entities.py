@@ -34,7 +34,9 @@ async def test_entities_are_created_on_one_device(
     )
     assert entities
 
-    device = device_registry.async_get_device(identifiers={(DOMAIN, MEMBER)})
+    device = device_registry.async_get_device_by_identifier(
+        (DOMAIN, MEMBER), mock_config_entry.entry_id
+    )
     assert device is not None
     assert device.name == "Sam Peeters"
     assert device.manufacturer == "ProSoccerData"
