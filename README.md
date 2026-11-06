@@ -77,27 +77,46 @@ any automation that used it at `sensor.<player>_unread_message_count` instead.
 
 ## ⚙️ Configuration
 
-The integration asks for:
+### Installation parameters
 
-* ProSoccerData email
-* ProSoccerData password
-* Which players to track
+The setup form asks for these; nothing is configured in YAML.
 
-### Options
+| Field | Required | Description |
+| --- | --- | --- |
+| Email address | yes | The email address you sign in to ProSoccerData with. Checked against ProSoccerData before the entry is created. |
+| Password | yes | Your ProSoccerData password. It is stored in the config entry so the integration can sign in again on its own, and is redacted from diagnostics. |
+| Players | yes | Which of the players on the account to follow. Each one becomes a device with its own sensors and calendar. At least one is required. |
 
-**Settings → Devices & Services → ProSoccerData → Configure** lets you change:
+An account can be added once. Adding the same email a second time is refused.
 
-| Option          | Default    | Notes                          |
-| --------------- | ---------- | ------------------------------ |
-| Players         | –          | Add or remove tracked players  |
-| Update interval | 30 minutes | Between 5 and 1440 minutes     |
+### Configuration parameters
 
-Changing an option reloads the integration straight away.
+**Settings → Devices & Services → ProSoccerData → Configure** changes these
+afterwards:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| Players | as chosen at setup | Add or drop tracked players. Dropping one leaves its device behind until you delete it. |
+| Update interval | 30 minutes | How often ProSoccerData is polled, between 5 and 1440 minutes. |
+
+Saving reloads the integration straight away.
 
 ### Password changes
 
-When ProSoccerData starts refusing the stored password, Home Assistant raises a
-repair notification asking you to sign in again. Nothing has to be removed.
+When ProSoccerData starts refusing the stored password, Home Assistant asks you
+to sign in again through a repair notification. Nothing has to be removed, and
+the tracked players and options are kept.
+
+---
+
+## 🗑️ Removal
+
+**Settings → Devices & Services → ProSoccerData → ⋮ → Delete** removes the
+entry, its devices and all of its entities. Nothing is left in Home Assistant
+afterwards, and nothing is changed in your ProSoccerData account.
+
+To remove the integration itself as well, delete it in **HACS** and restart
+Home Assistant.
 
 ---
 
@@ -533,12 +552,16 @@ sensor.<player>_account
 
 # 🎬 Actions
 
-| Action                            | Fields                                   | Effect                                                                                   |
-| --------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `prosoccerdata.open_message`      | `message_id`, `member_id` (optional)     | Fetches the full message and shows it on the Selected Message sensor; also returns it as a response |
-| `prosoccerdata.mark_message_read` | `message_id`, `member_id`, `read` (all optional) | Marks a message read (or unread with `read: false`); defaults to the opened message |
+| Action | Fields | Effect |
+| --- | --- | --- |
+| `prosoccerdata.open_message` | `message_id` (required), `member_id` | Fetches the full message, shows it on the Selected Message sensor and returns it as a response. |
+| `prosoccerdata.mark_message_read` | `message_id`, `member_id`, `read` | Marks a message read, or unread again with `read: false`. Without `message_id` it uses the message last opened. |
+| `prosoccerdata.get_attendance` | `event` (required), `member_id`, `status` | Returns who is down to attend an event, as a response. |
 
-`member_id` is only needed when more than one player is configured.
+`member_id` is only needed when more than one player is configured. Every
+action reports a problem as an error rather than returning an empty answer: an
+unknown player or a missing message id is a validation error, and a refusal
+from ProSoccerData is raised as such.
 
 ```yaml
 action: prosoccerdata.mark_message_read
@@ -546,8 +569,22 @@ data:
   message_id: 1349
 ```
 
----
+`event` takes a calendar uid such as `game-6963` or the bare number. `status`
+is `ALL` (the default), `PRESENT` or `ABSENT`; in practice only `ALL` is
+accepted by the endpoint that answers.
 
+```yaml
+action: prosoccerdata.get_attendance
+data:
+  event: game-6963
+response_variable: attendance
+```
+
+Reading an attendance list is the club's own staff view. It works for the
+account this integration was set up with, but another club may refuse it; the
+action then says so.
+
+---
 
 # 🔌 API Data Sources
 
