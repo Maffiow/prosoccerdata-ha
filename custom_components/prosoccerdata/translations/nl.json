@@ -7,6 +7,10 @@
         "data": {
           "email": "E-mailadres",
           "password": "Wachtwoord"
+        },
+        "data_description": {
+          "email": "Het e-mailadres waarmee je aanmeldt bij ProSoccerData.",
+          "password": "Je ProSoccerData-wachtwoord. Het wordt bewaard zodat de integratie zelf opnieuw kan aanmelden."
         }
       },
       "select_players": {
@@ -14,6 +18,9 @@
         "description": "Kies welke spelers je wil opvolgen.",
         "data": {
           "player_ids": "Spelers"
+        },
+        "data_description": {
+          "player_ids": "Elke gekozen speler wordt een apparaat met eigen sensoren en kalender."
         }
       },
       "reauth_confirm": {
@@ -21,6 +28,9 @@
         "description": "Geef het huidige wachtwoord voor {email}.",
         "data": {
           "password": "Wachtwoord"
+        },
+        "data_description": {
+          "password": "Je huidige ProSoccerData-wachtwoord."
         }
       }
     },

@@ -14,9 +14,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import ProSoccerDataConfigEntry
@@ -35,7 +33,6 @@ from .const import (
     ATTR_SEASON_MATCHES,
     ATTR_TEAM,
     ATTR_TITLE,
-    DOMAIN,
     EVENT_TYPE_GAME,
     MATCH_ATTRIBUTE_LIMIT,
     MESSAGE_ATTRIBUTE_LIMIT,
@@ -49,11 +46,14 @@ from .coordinator import (
     ProSoccerDataCoordinator,
     as_local_datetime,
     message_is_unread,
-    player_name,
     unread_messages,
 )
+from .entity import ProSoccerDataEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+# All data comes from one coordinator refresh, so the entities never poll.
+PARALLEL_UPDATES = 0
 
 CURRENCY_EURO = "EUR"
 
@@ -94,10 +94,8 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class ProSoccerDataBaseSensor(CoordinatorEntity[ProSoccerDataCoordinator], SensorEntity):
+class ProSoccerDataBaseSensor(ProSoccerDataEntity, SensorEntity):
     """Base sensor for ProSoccerData."""
-
-    _attr_has_entity_name = True
 
     # Set by each subclass; also used for the unique_id suffix, so changing one
     # of these renames the entity.
@@ -107,39 +105,7 @@ class ProSoccerDataBaseSensor(CoordinatorEntity[ProSoccerDataCoordinator], Senso
         self, coordinator: ProSoccerDataCoordinator, player: dict[str, Any]
     ) -> None:
         """Initialise the sensor."""
-        super().__init__(coordinator)
-        self._player = player
-
-        member_id = player["platformMemberId"]
-        club = player.get("platform", "ProSoccerData")
-
-        self._attr_unique_id = f"prosoccerdata_{member_id}_{self._key}"
-        self._attr_translation_key = self._key
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(member_id))},
-            name=player_name(player),
-            manufacturer="ProSoccerData",
-            model=club,
-            configuration_url=player.get("platformURL"),
-        )
-
-    @property
-    def available(self) -> bool:
-        """Only report available when this player actually has data."""
-        return super().available and self._player_data is not None
-
-    @property
-    def _player_data(self) -> dict[str, Any] | None:
-        if not self.coordinator.data:
-            return None
-        return self.coordinator.data.get(str(self._player["platformMemberId"]))
-
-    def _section(self, key: str, default: Any) -> Any:
-        """Return one block of this player's data, falling back to `default`."""
-        data = self._player_data
-        if not data:
-            return default
-        return data.get(key) or default
+        super().__init__(coordinator, player, self._key)
 
     @property
     def _teams(self) -> dict[str, Any]:

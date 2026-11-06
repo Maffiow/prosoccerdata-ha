@@ -7,6 +7,10 @@
         "data": {
           "email": "Email address",
           "password": "Password"
+        },
+        "data_description": {
+          "email": "The email address you sign in to ProSoccerData with.",
+          "password": "Your ProSoccerData password. It is stored so the integration can sign in again on its own."
         }
       },
       "select_players": {
@@ -14,6 +18,9 @@
         "description": "Choose which players (kids) you want to track.",
         "data": {
           "player_ids": "Players"
+        },
+        "data_description": {
+          "player_ids": "Each selected player becomes a device with its own sensors and calendar."
         }
       },
       "reauth_confirm": {
@@ -21,6 +28,9 @@
         "description": "Enter the current password for {email}.",
         "data": {
           "password": "Password"
+        },
+        "data_description": {
+          "password": "Your current ProSoccerData password."
         }
       }
     },

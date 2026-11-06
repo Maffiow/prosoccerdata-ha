@@ -93,6 +93,26 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # keyed like the player data. Lives outside `data` so a refresh does
         # not wipe what the dashboard is showing.
         self.selected_messages: dict[str, dict[str, Any]] = {}
+        # Players whose last refresh failed, and schedules that last came back
+        # empty. A refresh runs every few minutes, so each is logged once when
+        # it starts failing and once when it recovers, never on every cycle.
+        self._failing: set[str] = set()
+        self._schedule_failing: set[str] = set()
+
+    def _log_once(self, tracker: set[str], key: str, name: str, err: object) -> None:
+        """Warn the first time something fails, and stay quiet after that."""
+        if key in tracker:
+            _LOGGER.debug("Still failing for %s: %s", name, err)
+            return
+
+        tracker.add(key)
+        _LOGGER.warning("Error fetching data for %s: %s", name, err)
+
+    def _clear_failure(self, tracker: set[str], key: str, name: str) -> None:
+        """Note a success, logging only when it ends a run of failures."""
+        if key in tracker:
+            tracker.discard(key)
+            _LOGGER.info("Fetching data for %s works again", name)
 
     async def async_open_message(
         self, player: dict[str, Any], message_id: int
@@ -139,18 +159,21 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 result[key] = await self._fetch_player(player)
             except AuthError:
+                self._failing.add(key)
                 # Credentials or session are no longer valid for the whole
                 # account, so stop here and let Home Assistant ask again.
                 raise ConfigEntryAuthFailed(
                     "ProSoccerData rejected the stored credentials"
                 ) from None
             except (ProSoccerDataError, KeyError, TypeError, ValueError) as err:
-                _LOGGER.warning("Error fetching data for %s: %s", name, err)
+                self._log_once(self._failing, key, name, err)
                 failures.append(name)
                 # Keep serving the previous values rather than blanking the
                 # sensors on a single bad refresh.
                 if key in previous:
                     result[key] = previous[key]
+            else:
+                self._clear_failure(self._failing, key, name)
 
         if failures and len(failures) == len(self.players):
             raise UpdateFailed(f"No data could be fetched for: {', '.join(failures)}")
@@ -259,11 +282,26 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             events = [self.api.parse_event(event) for event in raw_events]
         except AuthError:
             raise
-        except (ProSoccerDataError, AttributeError, KeyError, TypeError, ValueError) as err:
-            _LOGGER.warning(
-                "Could not fetch the schedule for %s: %s", player_name(player), err
+        except (
+            ProSoccerDataError,
+            AttributeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as err:
+            self._log_once(
+                self._schedule_failing,
+                str(player["platformMemberId"]),
+                f"the schedule of {player_name(player)}",
+                err,
             )
             return []
+
+        self._clear_failure(
+            self._schedule_failing,
+            str(player["platformMemberId"]),
+            f"the schedule of {player_name(player)}",
+        )
 
         return sorted(
             (event for event in events if not event.get("cancelled")),

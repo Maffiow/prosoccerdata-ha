@@ -8,17 +8,19 @@ from typing import Any
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from . import ProSoccerDataConfigEntry
 from .api import ProSoccerDataError
-from .const import DOMAIN, EVENT_TYPE_GAME
+from .const import EVENT_TYPE_GAME
 from .coordinator import ProSoccerDataCoordinator, as_local_datetime, player_name
+from .entity import ProSoccerDataEntity
 
 _LOGGER = logging.getLogger(__name__)
+
+# The coordinator drives every refresh; async_get_events fetches on demand.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
@@ -34,36 +36,18 @@ async def async_setup_entry(
     )
 
 
-class ProSoccerDataCalendar(CoordinatorEntity[ProSoccerDataCoordinator], CalendarEntity):
+class ProSoccerDataCalendar(ProSoccerDataEntity, CalendarEntity):
     """The player's ProSoccerData schedule: matches, trainings and other events."""
-
-    _attr_has_entity_name = True
-    _attr_translation_key = "schedule"
 
     def __init__(
         self, coordinator: ProSoccerDataCoordinator, player: dict[str, Any]
     ) -> None:
         """Initialise the calendar."""
-        super().__init__(coordinator)
-        self._player = player
-
-        member_id = player["platformMemberId"]
-
-        self._attr_unique_id = f"prosoccerdata_{member_id}_schedule"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, str(member_id))},
-            name=player_name(player),
-            manufacturer="ProSoccerData",
-            model=player.get("platform", "ProSoccerData"),
-            configuration_url=player.get("platformURL"),
-        )
+        super().__init__(coordinator, player, "schedule")
 
     @property
     def _upcoming(self) -> list[dict[str, Any]]:
-        data = (self.coordinator.data or {}).get(
-            str(self._player["platformMemberId"])
-        ) or {}
-        return data.get("upcoming") or []
+        return self._section("upcoming", [])
 
     @property
     def event(self) -> CalendarEvent | None:
