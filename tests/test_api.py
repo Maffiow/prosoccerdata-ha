@@ -282,3 +282,111 @@ def test_parse_event_strips_match_only_fields() -> None:
     assert parsed["opponent"] == ""
     assert parsed["home_away"] == ""
     assert parsed["score"] is None
+
+
+async def test_payment_requests(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
+    """Payment requests come back as a plain list."""
+    allow_platform_login(mocker)
+    mocker.get(
+        f"{API}/finances/members/{PLAYER['platformMemberId']}/paymentrequests",
+        json={"content": [{"id": 5, "amount": "45.50"}]},
+    )
+
+    assert await api.get_payment_requests(PLAYER) == [{"id": 5, "amount": "45.50"}]
+
+
+async def test_get_teams_posts_the_filter(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
+    """The profile block is fetched through the calendar filter endpoint."""
+    allow_platform_login(mocker)
+    mocker.post(
+        f"{API}/filters/module/kalender/name/teams",
+        json={"member": {"id": 1}, "user": {"username": "x"}},
+    )
+
+    teams = await api.get_teams(PLAYER)
+
+    assert teams["member"]["id"] == 1
+    assert mocker.mock_calls[-1][0] == "POST"
+
+
+async def test_get_messages(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
+    """The inbox page keeps its envelope, which carries the total."""
+    allow_platform_login(mocker)
+    mocker.get(
+        f"{API}/mailbox/status/INBOX",
+        json={"content": [{"id": 11}], "totalElements": 55},
+    )
+
+    page = await api.get_messages(PLAYER)
+
+    assert page["totalElements"] == 55
+
+
+async def test_get_team_members(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
+    """A team's squad is fetched by team id."""
+    allow_platform_login(mocker)
+    mocker.get(f"{API}/teams/3/members", json=[{"id": 1}])
+
+    assert await api.get_team_members(PLAYER, 3) == [{"id": 1}]
+
+
+async def test_get_unread_messages(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
+    """Unread messages come back as a list, not a page."""
+    allow_platform_login(mocker)
+    mocker.get(f"{API}/mailbox/unread", json=[{"id": 11}])
+
+    assert await api.get_unread_messages(PLAYER) == [{"id": 11}]
+
+
+async def test_message_detail_unwraps_the_mail(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
+    """The body sits one level down, under `mail`."""
+    allow_platform_login(mocker)
+    mocker.get(
+        f"{API}/mailbox/11/detail",
+        json={"mail": {"id": 11, "message": "<p>Hallo</p>"}},
+    )
+
+    mail = await api.get_message_detail(PLAYER, 11)
+
+    assert mail["message"] == "<p>Hallo</p>"
+
+
+async def test_message_detail_without_a_mail_key(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
+    """An answer without the expected key yields nothing rather than raising."""
+    allow_platform_login(mocker)
+    mocker.get(f"{API}/mailbox/11/detail", json={})
+
+    assert await api.get_message_detail(PLAYER, 11) == {}
+
+
+@pytest.mark.parametrize(("read", "expected"), [(True, "true"), (False, "false")])
+async def test_set_messages_read(
+    hass: HomeAssistant,
+    mocker: AiohttpClientMocker,
+    api: ProSoccerDataAPI,
+    read: bool,
+    expected: str,
+) -> None:
+    """Both marking read and marking unread hit the matching path."""
+    allow_platform_login(mocker)
+    mocker.post(f"{API}/mailbox/read/{expected}", json={})
+
+    await api.set_messages_read(PLAYER, [11, 12], read)
+
+    url = str(mocker.mock_calls[-1][1])
+    assert f"/mailbox/read/{expected}" in url
+    assert "mailIds=11,12" in url
