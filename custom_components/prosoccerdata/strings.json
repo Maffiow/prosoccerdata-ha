@@ -32,6 +32,28 @@
         "data_description": {
           "password": "Your current ProSoccerData password."
         }
+      },
+      "reconfigure": {
+        "title": "ProSoccerData – Reconfigure",
+        "description": "Confirm or change the credentials for this ProSoccerData account.",
+        "data": {
+          "email": "Email address",
+          "password": "Password"
+        },
+        "data_description": {
+          "email": "Has to stay the same account; add a second entry for another account.",
+          "password": "Your current ProSoccerData password. It is checked before it is stored."
+        }
+      },
+      "reconfigure_players": {
+        "title": "ProSoccerData – Select players",
+        "description": "Choose which players to track from now on.",
+        "data": {
+          "player_ids": "Players"
+        },
+        "data_description": {
+          "player_ids": "Players you clear lose their device and entities; players you add get their own."
+        }
       }
     },
     "error": {
@@ -43,7 +65,9 @@
     },
     "abort": {
       "already_configured": "This ProSoccerData account is already configured.",
-      "reauth_successful": "ProSoccerData was signed in again."
+      "reauth_successful": "ProSoccerData was signed in again.",
+      "reconfigure_successful": "ProSoccerData was reconfigured.",
+      "account_mismatch": "That is a different ProSoccerData account. Add it as a second entry instead."
     }
   },
   "options": {
@@ -178,6 +202,47 @@
           "description": "Limit the list to one attendance status."
         }
       }
+    }
+  },
+  "exceptions": {
+    "no_entry_loaded": {
+      "message": "No ProSoccerData account is loaded, so there is no mailbox to act on."
+    },
+    "unknown_member": {
+      "message": "No tracked ProSoccerData player has member ID {member_id}."
+    },
+    "member_id_required": {
+      "message": "More than one player is configured; pass member_id to say which one."
+    },
+    "invalid_event": {
+      "message": "{event} holds no ProSoccerData event ID."
+    },
+    "no_message_selected": {
+      "message": "No message_id was given and no message has been opened yet."
+    },
+    "open_message_failed": {
+      "message": "Could not open message {message_id}: {error}"
+    },
+    "mark_read_failed": {
+      "message": "Could not change the read status of message {message_id}: {error}"
+    },
+    "attendance_forbidden": {
+      "message": "ProSoccerData will not let this account read attendance lists ({error}). Only the club's own staff screen shows them."
+    },
+    "attendance_failed": {
+      "message": "Could not read the attendance list: {error}"
+    },
+    "auth_failed": {
+      "message": "ProSoccerData rejected the stored credentials ({error})."
+    },
+    "cannot_connect": {
+      "message": "Cannot reach ProSoccerData: {error}"
+    },
+    "update_failed": {
+      "message": "No data could be fetched for: {players}"
+    },
+    "no_players_configured": {
+      "message": "No players are configured."
     }
   }
 }

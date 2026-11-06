@@ -68,11 +68,22 @@ rules:
       A failing player or schedule is logged once when it starts failing and
       once when it recovers; the repeats in between go to debug.
   parallel-updates: done
+  reauthentication-flow:
+    status: done
+    comment: |
+      A rejected session raises ConfigEntryAuthFailed, and the reauth step
+      verifies the new password against ProSoccerData before storing it.
   test-coverage: done
 
   # Gold
-  devices: done
-  diagnostics: done
+  devices:
+    status: done
+    comment: |
+      Every tracked player is a device, with the club platform as its model and
+      the player's ProSoccerData page as its configuration URL.
+  diagnostics:
+    status: done
+    comment: The dump redacts the password and the account's email address.
   discovery:
     status: exempt
     comment: |
@@ -81,38 +92,66 @@ rules:
   discovery-update-info:
     status: exempt
     comment: Not discoverable, so there is no discovery information to update.
-  docs-data-update: todo
-  docs-examples: todo
-  docs-known-limitations: todo
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
   docs-supported-devices:
     status: exempt
     comment: The integration talks to a service, not to devices.
-  docs-supported-functions: todo
-  docs-troubleshooting: todo
-  docs-use-cases: todo
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
   dynamic-devices:
-    status: todo
+    status: exempt
     comment: |
-      A player added to the account shows up only after the options flow is
-      used to select them.
-  entity-category: todo
-  entity-device-class: todo
-  entity-disabled-by-default: todo
+      A ProSoccerData account can see every member of a club, so the players to
+      follow are chosen by hand in the config and options flows rather than
+      taken from the account wholesale. There is nothing left to pick up
+      automatically: every selected player gets its device on the next reload,
+      and the options flow reloads as soon as it is saved.
+  entity-category:
+    status: done
+    comment: |
+      The profile and account sensors describe the login and the paperwork
+      rather than anything that happens on the pitch, so both are diagnostic.
+  entity-device-class:
+    status: done
+    comment: |
+      Timestamp on the next-match and next-training sensors, date on the
+      last-match sensor and monetary on the three payment sensors. The rest are
+      counts and free-text strings from an undocumented API; the payment status
+      in particular is not an enum, because ProSoccerData does not publish the
+      set of values it can send and a state outside `options` would be logged
+      as an error.
+  entity-disabled-by-default:
+    status: done
+    comment: |
+      The account sensor is the same for every player on the account and is of
+      no interest once setup worked, so it starts switched off.
   entity-translations: done
-  exception-translations: todo
+  exception-translations:
+    status: done
+    comment: |
+      Every HomeAssistantError, ServiceValidationError, ConfigEntryAuthFailed,
+      ConfigEntryNotReady and UpdateFailed raised by the integration carries a
+      translation key, with English and Dutch messages.
   icon-translations: done
-  reconfiguration-flow: todo
+  reconfiguration-flow:
+    status: done
+    comment: |
+      The reconfigure step re-enters the credentials and the player selection,
+      and refuses a different account so the entry's unique id keeps matching.
   repair-issues:
     status: exempt
     comment: |
       The only recoverable failure is a rejected password, which the
       reauthentication flow already raises.
   stale-devices:
-    status: todo
+    status: done
     comment: |
-      A player removed in the options flow leaves its device behind until it
-      is deleted by hand.
-
+      Dropping a player in the options or reconfigure flow removes its device
+      on the reload that follows, and async_remove_config_entry_device lets a
+      device be deleted by hand once its player is no longer tracked.
   # Platinum
   async-dependency:
     status: done

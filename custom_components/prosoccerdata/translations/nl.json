@@ -32,6 +32,28 @@
         "data_description": {
           "password": "Je huidige ProSoccerData-wachtwoord."
         }
+      },
+      "reconfigure": {
+        "title": "ProSoccerData – Opnieuw instellen",
+        "description": "Bevestig of wijzig de inloggegevens van dit ProSoccerData-account.",
+        "data": {
+          "email": "E-mailadres",
+          "password": "Wachtwoord"
+        },
+        "data_description": {
+          "email": "Moet hetzelfde account blijven; voeg een tweede vermelding toe voor een ander account.",
+          "password": "Je huidige ProSoccerData-wachtwoord. Het wordt gecontroleerd voor het wordt opgeslagen."
+        }
+      },
+      "reconfigure_players": {
+        "title": "ProSoccerData – Spelers kiezen",
+        "description": "Kies welke spelers vanaf nu gevolgd worden.",
+        "data": {
+          "player_ids": "Spelers"
+        },
+        "data_description": {
+          "player_ids": "Spelers die je uitvinkt verliezen hun apparaat en entiteiten; spelers die je toevoegt krijgen die erbij."
+        }
       }
     },
     "error": {
@@ -43,7 +65,9 @@
     },
     "abort": {
       "already_configured": "Dit ProSoccerData-account is al geconfigureerd.",
-      "reauth_successful": "ProSoccerData is opnieuw aangemeld."
+      "reauth_successful": "ProSoccerData is opnieuw aangemeld.",
+      "reconfigure_successful": "ProSoccerData is opnieuw ingesteld.",
+      "account_mismatch": "Dat is een ander ProSoccerData-account. Voeg het toe als tweede vermelding."
     }
   },
   "options": {
@@ -178,6 +202,47 @@
           "description": "Beperk de lijst tot één aanwezigheidsstatus."
         }
       }
+    }
+  },
+  "exceptions": {
+    "no_entry_loaded": {
+      "message": "Er is geen ProSoccerData-account geladen, dus er is geen postvak om op te werken."
+    },
+    "unknown_member": {
+      "message": "Geen enkele gevolgde ProSoccerData-speler heeft lid-ID {member_id}."
+    },
+    "member_id_required": {
+      "message": "Er is meer dan één speler ingesteld; geef member_id mee om te zeggen welke."
+    },
+    "invalid_event": {
+      "message": "{event} bevat geen ProSoccerData-activiteit-ID."
+    },
+    "no_message_selected": {
+      "message": "Er is geen message_id meegegeven en er is nog geen bericht geopend."
+    },
+    "open_message_failed": {
+      "message": "Kon bericht {message_id} niet openen: {error}"
+    },
+    "mark_read_failed": {
+      "message": "Kon de leesstatus van bericht {message_id} niet wijzigen: {error}"
+    },
+    "attendance_forbidden": {
+      "message": "ProSoccerData laat dit account geen aanwezigheidslijsten lezen ({error}). Alleen het stafscherm van de club toont die."
+    },
+    "attendance_failed": {
+      "message": "Kon de aanwezigheidslijst niet lezen: {error}"
+    },
+    "auth_failed": {
+      "message": "ProSoccerData weigert de opgeslagen inloggegevens ({error})."
+    },
+    "cannot_connect": {
+      "message": "ProSoccerData is niet bereikbaar: {error}"
+    },
+    "update_failed": {
+      "message": "Er kon geen data opgehaald worden voor: {players}"
+    },
+    "no_players_configured": {
+      "message": "Er zijn geen spelers ingesteld."
     }
   }
 }

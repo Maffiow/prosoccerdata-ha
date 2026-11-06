@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from homeassistant.config_entries import SOURCE_USER
+from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -256,3 +256,135 @@ async def test_options_flow_aborts_when_unreachable(
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == expected
+
+
+async def start_reconfigure_flow(hass: HomeAssistant, entry) -> dict:
+    """Open the reconfigure step for an existing entry."""
+    return await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+
+
+async def test_reconfigure_changes_password_and_players(
+    hass: HomeAssistant, mock_api: AsyncMock, mock_config_entry
+) -> None:
+    """Reconfiguring re-enters the credentials and the selection in one pass."""
+    mock_api.get_players.return_value = [PLAYER, SECOND_PLAYER]
+    await setup_integration(hass, mock_config_entry)
+
+    result = await start_reconfigure_flow(hass, mock_config_entry)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_EMAIL: EMAIL, CONF_PASSWORD: "new-secret"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_players"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_PLAYER_IDS: [str(SECOND_PLAYER["platformMemberId"])]},
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.data[CONF_PASSWORD] == "new-secret"
+    assert mock_config_entry.data[CONF_PLAYERS] == [SECOND_PLAYER]
+
+
+async def test_reconfigure_moves_the_options_selection_too(
+    hass: HomeAssistant, mock_api: AsyncMock, mock_config_entry
+) -> None:
+    """An entry whose players live in its options has those replaced as well."""
+    mock_api.get_players.return_value = [PLAYER, SECOND_PLAYER]
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={CONF_PLAYERS: [PLAYER], CONF_SCAN_INTERVAL_MINUTES: 45},
+    )
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await start_reconfigure_flow(hass, mock_config_entry)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], CREDENTIALS
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_PLAYER_IDS: [str(SECOND_PLAYER["platformMemberId"])]},
+    )
+    await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert mock_config_entry.options[CONF_PLAYERS] == [SECOND_PLAYER]
+    # The interval is left where it was.
+    assert mock_config_entry.options[CONF_SCAN_INTERVAL_MINUTES] == 45
+
+
+async def test_reconfigure_refuses_another_account(
+    hass: HomeAssistant, mock_api: AsyncMock, mock_config_entry
+) -> None:
+    """The email is the entry's unique id, so it cannot be swapped here."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await start_reconfigure_flow(hass, mock_config_entry)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_EMAIL: "someone.else@example.test", CONF_PASSWORD: PASSWORD},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "account_mismatch"
+    assert mock_config_entry.data[CONF_EMAIL] == EMAIL
+
+
+@pytest.mark.parametrize(
+    ("side_effect", "expected"),
+    [
+        (AuthError("invalid"), "invalid_auth"),
+        (AuthError("no_players"), "no_players"),
+        (ProSoccerDataError("boom"), "cannot_connect"),
+        (RuntimeError("surprise"), "unknown"),
+    ],
+)
+async def test_reconfigure_errors(
+    hass: HomeAssistant,
+    mock_api: AsyncMock,
+    mock_config_entry,
+    side_effect: Exception,
+    expected: str,
+) -> None:
+    """A login that fails keeps the reconfigure form open."""
+    await setup_integration(hass, mock_config_entry)
+    mock_api.login.side_effect = side_effect
+
+    result = await start_reconfigure_flow(hass, mock_config_entry)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], CREDENTIALS
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": expected}
+
+
+async def test_reconfigure_requires_a_selection(
+    hass: HomeAssistant, mock_api: AsyncMock, mock_config_entry
+) -> None:
+    """Clearing every player in the reconfigure flow is refused."""
+    await setup_integration(hass, mock_config_entry)
+
+    result = await start_reconfigure_flow(hass, mock_config_entry)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], CREDENTIALS
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_PLAYER_IDS: []}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_players"
+    assert result["errors"] == {"base": "no_players_selected"}
+

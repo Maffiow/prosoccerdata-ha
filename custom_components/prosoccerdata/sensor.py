@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
@@ -327,6 +328,9 @@ class ProSoccerDataProfileSensor(ProSoccerDataBaseSensor):
     """Member profile information."""
 
     _key = "profile"
+    # Who the player is on paper, rather than anything that happens on the
+    # pitch, so it belongs under the device's diagnostics.
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def native_value(self) -> str | None:
@@ -411,6 +415,10 @@ class ProSoccerDataAccountSensor(ProSoccerDataBaseSensor):
     """ProSoccerData account information."""
 
     _key = "account"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    # Describes the login rather than the player, and is the same for every
+    # player on the account, so it starts switched off.
+    _attr_entity_registry_enabled_default = False
 
     @property
     def native_value(self) -> str | None:

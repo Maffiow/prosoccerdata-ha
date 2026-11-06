@@ -13,7 +13,7 @@
   "loggers": [
     "custom_components.prosoccerdata"
   ],
-  "quality_scale": "silver",
+  "quality_scale": "gold",
   "requirements": [],
-  "version": "0.9.0"
+  "version": "0.10.0"
 }

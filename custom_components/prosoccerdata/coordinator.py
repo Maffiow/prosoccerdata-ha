@@ -120,7 +120,7 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fetch a message's full body and expose it as the selected message."""
         mail = await self.api.get_message_detail(player, message_id)
         if not mail:
-            raise ProSoccerDataError(f"Message {message_id} was not found")
+            raise ProSoccerDataError(f"message {message_id} was not found")
 
         key = str(player["platformMemberId"])
         unread_ids = {
@@ -163,7 +163,9 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # Credentials or session are no longer valid for the whole
                 # account, so stop here and let Home Assistant ask again.
                 raise ConfigEntryAuthFailed(
-                    "ProSoccerData rejected the stored credentials"
+                    translation_domain=DOMAIN,
+                    translation_key="auth_failed",
+                    translation_placeholders={"error": "session rejected"},
                 ) from None
             except (ProSoccerDataError, KeyError, TypeError, ValueError) as err:
                 self._log_once(self._failing, key, name, err)
@@ -176,10 +178,16 @@ class ProSoccerDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._clear_failure(self._failing, key, name)
 
         if failures and len(failures) == len(self.players):
-            raise UpdateFailed(f"No data could be fetched for: {', '.join(failures)}")
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"players": ", ".join(failures)},
+            )
 
         if not result:
-            raise UpdateFailed("No players are configured")
+            raise UpdateFailed(
+                translation_domain=DOMAIN, translation_key="no_players_configured"
+            )
 
         return result
 

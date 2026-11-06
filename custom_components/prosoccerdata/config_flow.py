@@ -92,6 +92,29 @@ def _player_options(players: list[dict[str, Any]]) -> list[dict[str, str]]:
     ]
 
 
+def _players_schema(
+    players: list[dict[str, Any]], selected: list[str] | None = None
+) -> vol.Schema:
+    """Return the multi-select schema for picking players."""
+    key = (
+        vol.Required(CONF_PLAYER_IDS, default=selected)
+        if selected is not None
+        else vol.Required(CONF_PLAYER_IDS)
+    )
+
+    return vol.Schema(
+        {
+            key: SelectSelector(
+                SelectSelectorConfig(
+                    options=_player_options(players),
+                    multiple=True,
+                    mode=SelectSelectorMode.LIST,
+                )
+            ),
+        }
+    )
+
+
 def _scan_interval_selector() -> NumberSelector:
     return NumberSelector(
         NumberSelectorConfig(
@@ -176,20 +199,102 @@ class ProSoccerDataConfigFlow(ConfigFlow, domain=DOMAIN):
                     },
                 )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_PLAYER_IDS): SelectSelector(
-                    SelectSelectorConfig(
-                        options=_player_options(self._players),
-                        multiple=True,
-                        mode=SelectSelectorMode.LIST,
-                    )
-                ),
-            }
+        return self.async_show_form(
+            step_id="select_players",
+            data_schema=_players_schema(self._players),
+            errors=errors,
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Re-enter the credentials of an entry that is already set up."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            self._email = user_input[CONF_EMAIL]
+            self._password = user_input[CONF_PASSWORD]
+
+            try:
+                self._players = await _fetch_players(
+                    self.hass, self._email, self._password
+                )
+            except AuthError as err:
+                errors["base"] = (
+                    "no_players" if str(err) == "no_players" else "invalid_auth"
+                )
+            except ProSoccerDataError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001 - surfaced to the user as "unknown"
+                _LOGGER.exception("Unexpected error during ProSoccerData reconfigure")
+                errors["base"] = "unknown"
+            else:
+                # The email address is the unique id, so swapping accounts
+                # here would silently reuse another account's entry.
+                await self.async_set_unique_id(f"prosoccerdata_{self._email}")
+                self._abort_if_unique_id_mismatch(reason="account_mismatch")
+                return await self.async_step_reconfigure_players()
+
         return self.async_show_form(
-            step_id="select_players", data_schema=schema, errors=errors
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_CREDENTIALS_SCHEMA,
+                user_input or {CONF_EMAIL: entry.data[CONF_EMAIL]},
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_players(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick the tracked players again, now the credentials are known good."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            selected_ids = user_input.get(CONF_PLAYER_IDS, [])
+
+            if not selected_ids:
+                errors["base"] = "no_players_selected"
+            else:
+                chosen = [
+                    player
+                    for player in self._players
+                    if str(player["platformMemberId"]) in selected_ids
+                ]
+                # The options hold the live selection, so they have to move
+                # with it or the entry would keep the old players.
+                options = dict(entry.options)
+                if CONF_PLAYERS in options:
+                    options[CONF_PLAYERS] = chosen
+
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={
+                        CONF_EMAIL: self._email,
+                        CONF_PASSWORD: self._password,
+                        CONF_PLAYERS: chosen,
+                    },
+                    options=options,
+                )
+
+        current = entry.options.get(CONF_PLAYERS, entry.data.get(CONF_PLAYERS, []))
+        available_ids = {
+            str(player["platformMemberId"]) for player in self._players
+        }
+
+        return self.async_show_form(
+            step_id="reconfigure_players",
+            data_schema=_players_schema(
+                self._players,
+                selected=[
+                    str(player["platformMemberId"])
+                    for player in current
+                    if str(player["platformMemberId"]) in available_ids
+                ],
+            ),
+            errors=errors,
         )
 
     async def async_step_reauth(
@@ -283,15 +388,8 @@ class ProSoccerDataOptionsFlow(OptionsFlowWithReload):
                     }
                 )
 
-        schema = vol.Schema(
+        schema = _players_schema(available, selected=current_ids).extend(
             {
-                vol.Required(CONF_PLAYER_IDS, default=current_ids): SelectSelector(
-                    SelectSelectorConfig(
-                        options=_player_options(available),
-                        multiple=True,
-                        mode=SelectSelectorMode.LIST,
-                    )
-                ),
                 vol.Required(
                     CONF_SCAN_INTERVAL_MINUTES, default=current_interval
                 ): _scan_interval_selector(),

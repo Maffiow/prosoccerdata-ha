@@ -15,6 +15,7 @@ from homeassistant.core import (
     ServiceCall,
     ServiceResponse,
     SupportsResponse,
+    callback,
 )
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
@@ -23,6 +24,7 @@ from homeassistant.exceptions import (
     ServiceValidationError,
 )
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -84,7 +86,11 @@ def event_id_from(value: str) -> int:
     digits = re.sub(r"\D", "", str(value))
 
     if not digits:
-        raise ServiceValidationError(f"{value!r} holds no ProSoccerData event id")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_event",
+            translation_placeholders={"event": str(value)},
+        )
 
     return int(digits)
 
@@ -150,22 +156,36 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             if member_id is None or str(player["platformMemberId"]) == str(member_id)
         ]
 
+        if not players and member_id is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="no_entry_loaded"
+            )
         if not players:
-            raise ServiceValidationError(f"No ProSoccerData player matches {member_id}")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_member",
+                translation_placeholders={"member_id": str(member_id)},
+            )
         if len(players) > 1:
             raise ServiceValidationError(
-                "More than one ProSoccerData player is configured; pass member_id"
+                translation_domain=DOMAIN, translation_key="member_id_required"
             )
         return players[0]
 
     async def open_message(call: ServiceCall) -> ServiceResponse:
         coordinator, player = _resolve(call)
+        message_id = call.data[ATTR_MESSAGE_ID]
         try:
-            mail = await coordinator.async_open_message(
-                player, call.data[ATTR_MESSAGE_ID]
-            )
+            mail = await coordinator.async_open_message(player, message_id)
         except ProSoccerDataError as err:
-            raise HomeAssistantError(f"Could not open the message: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="open_message_failed",
+                translation_placeholders={
+                    "message_id": str(message_id),
+                    "error": str(err),
+                },
+            ) from err
 
         return {
             "id": mail.get("id"),
@@ -184,7 +204,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
             if not selected:
                 raise ServiceValidationError(
-                    "No message_id given and no message has been opened"
+                    translation_domain=DOMAIN,
+                    translation_key="no_message_selected",
                 )
             message_id = selected["id"]
 
@@ -194,7 +215,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         except ProSoccerDataError as err:
             raise HomeAssistantError(
-                f"Could not update the message's read status: {err}"
+                translation_domain=DOMAIN,
+                translation_key="mark_read_failed",
+                translation_placeholders={
+                    "message_id": str(message_id),
+                    "error": str(err),
+                },
             ) from err
 
     async def get_attendance(call: ServiceCall) -> ServiceResponse:
@@ -210,13 +236,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         except AuthError as err:
             raise HomeAssistantError(
-                "ProSoccerData will not let this account read attendance lists"
-                f" ({err}). The club's staff screen is the only place that"
-                " shows them."
+                translation_domain=DOMAIN,
+                translation_key="attendance_forbidden",
+                translation_placeholders={"error": str(err)},
             ) from err
         except ProSoccerDataError as err:
             raise HomeAssistantError(
-                f"Could not read the attendance list: {err}"
+                translation_domain=DOMAIN,
+                translation_key="attendance_failed",
+                translation_placeholders={"error": str(err)},
             ) from err
 
         return {
@@ -262,10 +290,16 @@ async def async_setup_entry(
         await api.login()
     except AuthError as err:
         raise ConfigEntryAuthFailed(
-            f"ProSoccerData rejected the stored credentials: {err}"
+            translation_domain=DOMAIN,
+            translation_key="auth_failed",
+            translation_placeholders={"error": str(err)},
         ) from err
     except ProSoccerDataError as err:
-        raise ConfigEntryNotReady(f"Cannot reach ProSoccerData: {err}") from err
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="cannot_connect",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
     # Options win over the values captured during the initial config flow.
     players = entry.options.get(CONF_PLAYERS, entry.data.get(CONF_PLAYERS, []))
@@ -279,8 +313,58 @@ async def async_setup_entry(
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+    _async_drop_untracked_devices(hass, entry, players)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+def tracked_member_ids(players: list[dict]) -> set[str]:
+    """Return the platform member ids the entry is set up to follow."""
+    return {str(player["platformMemberId"]) for player in players}
+
+
+def _device_member_ids(device: dr.DeviceEntry) -> set[str]:
+    """Return the ProSoccerData member ids a device stands for."""
+    return {
+        identifier for domain, identifier in device.identifiers if domain == DOMAIN
+    }
+
+
+@callback
+def _async_drop_untracked_devices(
+    hass: HomeAssistant,
+    entry: ProSoccerDataConfigEntry,
+    players: list[dict],
+) -> None:
+    """Remove the devices of players who are no longer selected.
+
+    Dropping a player in the options flow reloads the entry, so this runs
+    right afterwards and the stale device never lingers.
+    """
+    registry = dr.async_get(hass)
+    tracked = tracked_member_ids(players)
+
+    for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+        if _device_member_ids(device) & tracked:
+            continue
+
+        _LOGGER.debug("Removing the device of an untracked player: %s", device.name)
+        registry.async_remove_device(device.id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    entry: ProSoccerDataConfigEntry,
+    device: dr.DeviceEntry,
+) -> bool:
+    """Allow deleting the device of a player that is no longer tracked.
+
+    A tracked player is refused: its device would come straight back on the
+    next refresh, so dropping the player in the options flow is the way to
+    get rid of it.
+    """
+    tracked = tracked_member_ids(entry.runtime_data.players)
+    return not _device_member_ids(device) & tracked
 
 
 async def async_unload_entry(

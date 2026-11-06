@@ -22,6 +22,28 @@ Besides match tracking, the integration also exposes financial, profile, team, m
 
 ---
 
+## 🎯 Supported functionality
+
+| Platform | Per player | What it does |
+| --- | --- | --- |
+| `calendar` | 1 entity | Matches, trainings and other events, as a real calendar you can automate on and show in the calendar panel. |
+| `sensor` | 17 entities | Next match and next training, the last match with its season history, payments, team and profile details, and the mailbox. |
+
+Three actions are registered: `prosoccerdata.open_message`,
+`prosoccerdata.mark_message_read` and `prosoccerdata.get_attendance`. They are
+described under [Actions](#-actions).
+
+Each tracked player becomes its own device, so the entities group per child and
+can be assigned to an area. The integration is cloud polling: it reads from
+ProSoccerData and writes back only the read flag of a mailbox message, through
+`prosoccerdata.mark_message_read`.
+
+Not supported, because ProSoccerData does not offer it to a parent account:
+confirming or declining attendance, entering match results, and anything to do
+with other clubs' teams.
+
+---
+
 ## ✅ Requirements
 
 * Home Assistant **2026.3** or newer (needed for the integration's own icon)
@@ -57,6 +79,15 @@ own — no removing and reinstalling.
 3. Restart Home Assistant
 
 Your account, selected players and options survive the upgrade.
+
+### Upgrading to 0.10.0
+
+The **Account** sensor moves to the device's *Diagnostic* section and is no
+longer created for players you add from now on; the ones you already have keep
+working and stay enabled. **Profile** moves to *Diagnostic* too, which only
+changes where it sits on the device page.
+
+Dropping a player now removes its device as well, instead of leaving it behind.
 
 ### Upgrading to 0.4.0
 
@@ -96,16 +127,52 @@ afterwards:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| Players | as chosen at setup | Add or drop tracked players. Dropping one leaves its device behind until you delete it. |
+| Players | as chosen at setup | Add or drop tracked players. Dropping one removes its device and entities as well. |
 | Update interval | 30 minutes | How often ProSoccerData is polled, between 5 and 1440 minutes. |
 
 Saving reloads the integration straight away.
+
+### Reconfiguring the account
+
+**Settings → Devices & Services → ProSoccerData → ⋮ → Reconfigure** re-enters
+the credentials and the player selection in one pass. It is the place to go
+after a password change you want to apply yourself, rather than waiting for the
+integration to notice. It has to stay the same ProSoccerData account — a
+different email address is refused, because the account is what tells two
+entries apart; add the other account as a second entry instead.
+
 
 ### Password changes
 
 When ProSoccerData starts refusing the stored password, Home Assistant asks you
 to sign in again through a repair notification. Nothing has to be removed, and
 the tracked players and options are kept.
+
+---
+
+## 🔄 Data updates
+
+The integration polls; nothing is pushed to it. One coordinator refresh covers
+every tracked player, **every 30 minutes** by default (configurable between 5
+minutes and a day). A refresh makes roughly seven calls per player: previous
+matches, payment requests, team and profile, the inbox page, the unread list,
+the squad list and the schedule window.
+
+The schedule window the coordinator keeps is **yesterday to 120 days ahead**.
+That window feeds the Next Match, Next Training and Upcoming Events sensors.
+The calendar panel asks for whatever range it is showing, so scrolling back a
+season fetches that range on demand instead of from the cached window.
+
+Two things do not wait for the next poll:
+
+* `prosoccerdata.open_message` fetches the message body there and then.
+* `prosoccerdata.mark_message_read` writes the flag and asks for a refresh
+  straight away, so the unread count catches up within seconds.
+
+A refresh that fails keeps the previous values rather than blanking the
+sensors, and a player whose data cannot be fetched at all goes unavailable on
+its own without taking the other players down. The failure is logged once when
+it starts and once when it recovers, not on every cycle.
 
 ---
 
@@ -299,6 +366,10 @@ sensor.<player>_payment_count
 ---
 
 ## 👤 Profile
+
+A *diagnostic* entity: it sits under **Diagnostic** on the device page
+rather than with the match and payment sensors. It is enabled, and works
+exactly as before.
 
 **Entity**
 
@@ -520,6 +591,11 @@ The body and attachment attributes are kept out of the recorder.
 ---
 ## 🔐 Account
 
+A *diagnostic* entity, and the one entity that is **disabled by default**:
+it describes the login rather than the player, and reads the same for every
+player on the account. Switch it on under the device's entities if you want
+it. Players configured before 0.10.0 keep theirs enabled.
+
 **Entity**
 
 ```text
@@ -586,6 +662,131 @@ action then says so.
 
 ---
 
+# 💡 Use Cases
+
+* **Get the family out of the door on time.** The Next Match sensor carries the
+  meeting hour and the meeting location, which is usually earlier and elsewhere
+  than the kick-off. Announce it, or set a reminder off it.
+* **Put the season on a dashboard.** The Last Match sensor carries the season's
+  competition matches with their results in `season_matches`, so a single
+  template card can show the whole campaign and the record so far.
+* **Never miss a club mail again.** The Unread Message Count sensor goes above
+  zero, a notification fires with the subject, and `open_message` pulls the
+  body into the notification or onto a dashboard.
+* **Keep the training week visible.** The calendar entity drops into the
+  calendar panel next to school and work, so a moved training shows up where
+  the rest of the week already is.
+* **Stay on top of the invoices.** Last Payment Status and Total Paid make an
+  unpaid request visible without logging in to the club's portal.
+* **Track more than one child.** Each player is a separate device with its own
+  calendar and sensors, from one ProSoccerData login.
+
+---
+
+# 🧪 Examples
+
+**Announce the meeting time the evening before a match**
+
+```yaml
+automation:
+  - alias: ProSoccerData - match tomorrow
+    triggers:
+      - trigger: time
+        at: "19:00:00"
+    conditions:
+      - condition: template
+        value_template: >
+          {{ as_timestamp(states('sensor.tiziano_perrone_next_match'), 0)
+             | timestamp_custom('%Y-%m-%d') == (now() + timedelta(days=1))
+             | as_timestamp | timestamp_custom('%Y-%m-%d') }}
+    actions:
+      - action: notify.family
+        data:
+          message: >
+            {% set m = 'sensor.tiziano_perrone_next_match' %}
+            Tomorrow against {{ state_attr(m, 'opponent') }}
+            ({{ state_attr(m, 'home_away') }}).
+            Be at {{ state_attr(m, 'meeting_location') }}
+            at {{ state_attr(m, 'meeting_hour') }}.
+```
+
+**Remind everyone an hour before training**
+
+```yaml
+automation:
+  - alias: ProSoccerData - training in an hour
+    triggers:
+      - trigger: template
+        value_template: >
+          {{ 0 < (as_timestamp(states('sensor.tiziano_perrone_next_training'), 0)
+                  - as_timestamp(now())) <= 3600 }}
+    actions:
+      - action: notify.family
+        data:
+          message: >
+            Training at {{ state_attr('sensor.tiziano_perrone_next_training', 'location') }}
+            in an hour.
+```
+
+**Notify on a new club message, with its text**
+
+```yaml
+automation:
+  - alias: ProSoccerData - new message
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.tiziano_perrone_unread_message_count
+        above: 0
+    actions:
+      - action: prosoccerdata.open_message
+        data:
+          message_id: >
+            {{ state_attr('sensor.tiziano_perrone_unread_message_count',
+                          'messages')[0].id }}
+        response_variable: mail
+      - action: notify.mobile_app_phone
+        data:
+          title: "{{ mail.subject }}"
+          message: "{{ mail.body_html | striptags | truncate(400) }}"
+```
+
+**Warn about a payment request that is still open**
+
+```yaml
+template:
+  - binary_sensor:
+      - name: ProSoccerData payment open
+        state: >
+          {{ states('sensor.tiziano_perrone_last_payment_status') not in
+             ['paid', 'unknown', 'unavailable'] }}
+        attributes:
+          amount: "{{ states('sensor.tiziano_perrone_last_payment_amount') }}"
+          due: "{{ state_attr('sensor.tiziano_perrone_last_payment_status', 'due_date') }}"
+```
+
+**Read the attendance list for the next match**
+
+```yaml
+script:
+  prosoccerdata_next_match_attendance:
+    sequence:
+      - action: prosoccerdata.get_attendance
+        data:
+          event: >
+            {{ state_attr('sensor.tiziano_perrone_upcoming_events', 'games')[0].uid }}
+        response_variable: attendance
+      - action: persistent_notification.create
+        data:
+          title: "{{ attendance.count }} players down to attend"
+          message: >
+            {{ attendance.players | map(attribute='name') | join(', ') }}
+```
+
+Entity IDs above are examples — use your own, which follow your Home Assistant
+language (see the note under [Available Entities](#-available-entities)).
+
+---
+
 # 🔌 API Data Sources
 
 This integration retrieves data from:
@@ -599,6 +800,68 @@ This integration retrieves data from:
 * Mailbox Inbox Messages
 * Unread Mailbox Messages
 * Message Detail (on demand, through the open_message action)
+
+---
+
+# ⚠️ Known Limitations
+
+* **Read-mostly.** The only thing written back to ProSoccerData is the read
+  flag of a mailbox message. Confirming or declining attendance, entering
+  results and editing the schedule are not possible from Home Assistant:
+  ProSoccerData does not offer those to a parent account.
+* **Attendance lists depend on your club.** `prosoccerdata.get_attendance`
+  reads the club's own staff view. It works for some accounts and is refused
+  for others; the action says which.
+* **No push.** ProSoccerData has no webhook or subscription, so a change shows
+  up on the next poll, up to the update interval later.
+* **Players are chosen by hand.** An account can see a whole squad, so the
+  players to follow are picked in the config flow. A child added to the account
+  later shows up after you add them under **Configure** or **Reconfigure**.
+* **One entry per account.** The email address is the entry's unique id. A
+  second ProSoccerData account is a second entry.
+* **Total Paid is not the full history.** It sums the payment requests the
+  integration fetched (the ten most recent), not everything ever invoiced.
+* **The API is private.** ProSoccerData does not publish or support these
+  endpoints, so a change on their side can break a sensor without warning.
+  Field names, payment statuses and the shape of an attendance record are all
+  taken from what the web client sends.
+* **Entity IDs follow your language.** Home Assistant builds an entity ID from
+  the translated name the first time it sees an entity, so a Dutch install gets
+  `sensor.<player>_volgende_wedstrijd`. Entities that already exist keep the ID
+  they were created with.
+
+---
+
+# 🩺 Troubleshooting
+
+**Turn on debug logging first.** Every problem below says more with it on:
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.prosoccerdata: debug
+```
+
+Or **Settings → Devices & Services → ProSoccerData → ⋮ → Enable debug logging**,
+which also gives you a log file to attach to an issue.
+
+| Symptom | What it means | What to do |
+| --- | --- | --- |
+| Setup fails with *Invalid email or password* | ProSoccerData refused the login. | Sign in at [app.prosoccerdata.com](https://app.prosoccerdata.com) to check the password. The email is the one you sign in with, not a club address. |
+| Setup fails with *no players were found* | The login worked but the account has no linked member. | Ask the club to link your account to your child. |
+| A repair notification asks you to sign in again | The stored password stopped working. | Click it and enter the new password, or use **Reconfigure**. Nothing has to be removed. |
+| Every entity of one player is *unavailable* | That player's refresh fails while the others work. | The log names the call that failed. Other players keep working; it usually clears on its own. |
+| Calendar and the two next-event sensors are unavailable, the rest work | The schedule endpoint did not answer for your club. | Nothing to fix locally — the log says why. The match, payment and mailbox sensors are unaffected by design. |
+| Team Members is empty | Your account may not be allowed to read the squad, or the member has no team id yet. | Check the `team_id` attribute on the Team sensor. An empty list is the deliberate fallback. |
+| `get_attendance` raises *will not let this account read attendance lists* | Your club does not grant a parent account the staff view. | Nothing to fix; the endpoint is the club's own. |
+| Entities named in Dutch, or not matching the docs | Entity IDs come from the translated name at creation time. | Rename under **Settings → Devices & Services → Entities**, or use the IDs your install actually made. |
+| A dropped player's device is still there | Devices from before 0.10.0 were left behind. | Delete it under the entry's devices; from 0.10.0 on it goes on the reload after the change. |
+| No *Update* on the HACS card | HACS has not refreshed its release list. | **⋮ → Update information** on the ProSoccerData card. |
+
+Still stuck: download the diagnostics from the entry's **⋮ → Download
+diagnostics** (the password and the account email are redacted) and open an
+issue with it and the debug log.
 
 ---
 

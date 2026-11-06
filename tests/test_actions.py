@@ -29,6 +29,24 @@ async def test_actions_are_registered_without_an_entry(hass: HomeAssistant) -> N
         assert hass.services.has_service(DOMAIN, action)
 
 
+async def test_actions_refuse_to_run_without_a_loaded_entry(
+    hass: HomeAssistant,
+) -> None:
+    """With no account loaded there is no mailbox to act on."""
+    from custom_components.prosoccerdata import async_setup
+
+    await async_setup(hass, {})
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "open_message",
+            {"message_id": 11},
+            blocking=True,
+            return_response=True,
+        )
+
+
 async def test_open_message_returns_the_body(
     hass: HomeAssistant, mock_api: AsyncMock, mock_config_entry
 ) -> None:
