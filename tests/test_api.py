@@ -32,15 +32,14 @@ def mocker():
         yield mock
 
 
-def make_api(hass: HomeAssistant, mocker: AiohttpClientMocker) -> ProSoccerDataAPI:
-    """Build a client bound to the mocked session."""
-    return ProSoccerDataAPI(
-        mocker.create_session(hass.loop),
-        EMAIL,
-        PASSWORD,
-        language="nl",
-        time_zone="Europe/Brussels",
+@pytest.fixture
+async def api(hass: HomeAssistant, mocker: AiohttpClientMocker):
+    """A client bound to the mocked session, closed again afterwards."""
+    session = mocker.create_session(hass.loop)
+    yield ProSoccerDataAPI(
+        session, EMAIL, PASSWORD, language="nl", time_zone="Europe/Brussels"
     )
+    await session.close()
 
 
 def allow_platform_login(mocker: AiohttpClientMocker) -> None:
@@ -51,10 +50,11 @@ def allow_platform_login(mocker: AiohttpClientMocker) -> None:
         mocker.get(f"{API}{path}", json={})
 
 
-async def test_login(hass: HomeAssistant, mocker: AiohttpClientMocker) -> None:
+async def test_login(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
     """A good login keeps the central token."""
     mocker.post(LOGIN_URL, json={"access_token": "central-token"})
-    api = make_api(hass, mocker)
 
     await api.login()
 
@@ -63,22 +63,23 @@ async def test_login(hass: HomeAssistant, mocker: AiohttpClientMocker) -> None:
 
 @pytest.mark.parametrize("status", [400, 401, 403])
 async def test_login_rejected(
-    hass: HomeAssistant, mocker: AiohttpClientMocker, status: int
+    hass: HomeAssistant,
+    mocker: AiohttpClientMocker,
+    api: ProSoccerDataAPI,
+    status: int,
 ) -> None:
     """Bad credentials raise AuthError, not a generic failure."""
     mocker.post(LOGIN_URL, status=status, text="nope")
-    api = make_api(hass, mocker)
 
     with pytest.raises(AuthError):
         await api.login()
 
 
 async def test_login_server_error(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """A broken service is not mistaken for bad credentials."""
     mocker.post(LOGIN_URL, status=500, text="boom")
-    api = make_api(hass, mocker)
 
     with pytest.raises(ProSoccerDataError) as err:
         await api.login()
@@ -86,38 +87,37 @@ async def test_login_server_error(
 
 
 async def test_login_without_a_token(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """A 200 that carries no token is still a failed login."""
     mocker.post(LOGIN_URL, json={})
-    api = make_api(hass, mocker)
 
     with pytest.raises(AuthError):
         await api.login()
 
 
-async def test_get_players(hass: HomeAssistant, mocker: AiohttpClientMocker) -> None:
+async def test_get_players(
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
+) -> None:
     """The client logs in on demand before the first central call."""
     mocker.post(LOGIN_URL, json={"access_token": "central-token"})
     mocker.get(POSSIBLE_USERS_URL, json=[PLAYER])
-    api = make_api(hass, mocker)
 
     assert await api.get_players() == [PLAYER]
 
 
 async def test_get_players_handles_a_bad_payload(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """An answer that is not a list yields no players."""
     mocker.post(LOGIN_URL, json={"access_token": "central-token"})
     mocker.get(POSSIBLE_USERS_URL, json={"unexpected": True})
-    api = make_api(hass, mocker)
 
     assert await api.get_players() == []
 
 
 async def test_previous_matches(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """A paged answer is unwrapped to its content."""
     allow_platform_login(mocker)
@@ -125,19 +125,17 @@ async def test_previous_matches(
         f"{API}/schedule/dashboard/games/previous",
         json={"content": [{"id": 1, "fullTitle": "A - B"}]},
     )
-    api = make_api(hass, mocker)
 
     matches = await api.get_previous_matches(PLAYER)
     assert [match["id"] for match in matches] == [1]
 
 
 async def test_schedule_formats_its_window(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """The schedule window is sent in the format the API expects."""
     allow_platform_login(mocker)
     mocker.get(f"{API}/schedule/dashboard", json=[{"id": 2}])
-    api = make_api(hass, mocker)
 
     await api.get_schedule(
         PLAYER, datetime(2026, 11, 1, 8, 30), datetime(2026, 12, 1, 8, 30)
@@ -149,24 +147,22 @@ async def test_schedule_formats_its_window(
 
 
 async def test_platform_select_refusal_is_an_auth_error(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """Being refused a club token is a rights problem."""
     mocker.post(LOGIN_URL, json={"access_token": "central-token"})
     mocker.post(SELECT_URL, status=403, text="no")
-    api = make_api(hass, mocker)
 
     with pytest.raises(AuthError):
         await api.get_previous_matches(PLAYER)
 
 
 async def test_expired_session_is_refreshed_once(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """A 401 throws the tokens away and fetches a new club token, once."""
     allow_platform_login(mocker)
     mocker.get(f"{API}/schedule/dashboard/games/previous", status=401, text="no")
-    api = make_api(hass, mocker)
 
     with pytest.raises(AuthError):
         await api.get_previous_matches(PLAYER)
@@ -178,24 +174,22 @@ async def test_expired_session_is_refreshed_once(
 
 
 async def test_repeated_refusal_gives_up(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """An endpoint that keeps answering 401 raises instead of looping."""
     allow_platform_login(mocker)
     mocker.get(f"{API}/schedule/dashboard/games/previous", status=401, text="no")
-    api = make_api(hass, mocker)
 
     with pytest.raises(AuthError):
         await api.get_previous_matches(PLAYER)
 
 
 async def test_server_error_is_reported(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """A 500 is a plain failure, not an auth problem."""
     allow_platform_login(mocker)
     mocker.get(f"{API}/schedule/dashboard/games/previous", status=500, text="boom")
-    api = make_api(hass, mocker)
 
     with pytest.raises(ProSoccerDataError) as err:
         await api.get_previous_matches(PLAYER)
@@ -203,7 +197,7 @@ async def test_server_error_is_reported(
 
 
 async def test_presences_falls_back_to_the_second_route(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """When /agenda rejects the request, the /schedule route is tried."""
     allow_platform_login(mocker)
@@ -212,7 +206,6 @@ async def test_presences_falls_back_to_the_second_route(
         f"{API}/schedule/game/6786/presences/ALL",
         json={"content": [{"playerId": 1}]},
     )
-    api = make_api(hass, mocker)
 
     path, items = await api.get_event_presences(PLAYER, 6786)
 
@@ -221,13 +214,12 @@ async def test_presences_falls_back_to_the_second_route(
 
 
 async def test_presences_gives_up_when_both_routes_fail(
-    hass: HomeAssistant, mocker: AiohttpClientMocker
+    hass: HomeAssistant, mocker: AiohttpClientMocker, api: ProSoccerDataAPI
 ) -> None:
     """Both routes failing is reported, not silently empty."""
     allow_platform_login(mocker)
     mocker.get(f"{API}/agenda/6786/presences/ALL", status=400, text="bad")
     mocker.get(f"{API}/schedule/game/6786/presences/ALL", status=400, text="bad")
-    api = make_api(hass, mocker)
 
     with pytest.raises(ProSoccerDataError):
         await api.get_event_presences(PLAYER, 6786)
